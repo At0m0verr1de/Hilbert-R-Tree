@@ -31,7 +31,6 @@ struct LeafEntry {
 struct LeafNode {
     int num_entries;
     struct LeafEntry entries[MAX_CHILDREN];
-    NODE parent_ptr;
 };
 
 struct NonLeafEntry {
@@ -43,11 +42,12 @@ struct NonLeafEntry {
 struct NonLeafNode {
     int num_entries;
     struct NonLeafEntry entries[MAX_CHILDREN];
-    NODE parent_ptr;
+    
 };
 typedef struct Node* NODE;
 struct Node {
     int is_leaf;
+    NODE parent_ptr;
     union {
         struct NonLeafNode non_leaf_node;  // Non-leaf node
         struct LeafNode leaf_node;  // Leaf node
@@ -215,7 +215,7 @@ void Insert(NODE root, Rectangle rectangle){
         S[1] = newLeafNode;
     }
     int numSiblings = 1;
-    NODE parentNode = leafNode->u.non_leaf_node.parent_ptr;
+    NODE parentNode = leafNode->parent_ptr;
     //GO FROM CURRENT NODE TO ROOT FINDING SIBLINGS
     //WITH LESS THAN MAXIMUM POINTERS
     while (parentNode) {
@@ -232,7 +232,7 @@ void Insert(NODE root, Rectangle rectangle){
                 S[++numSiblings] = parentNode->u.non_leaf_node.entries[index + 1].child_ptr;
             }
             S[0] = parentNode;
-            parentNode = parentNode->u.non_leaf_node.parent_ptr;
+            parentNode = parentNode->parent_ptr;
     }
     //HOW TO ADD COOPERATING SIBLINGS?
     AdjustTree(S);
@@ -243,14 +243,14 @@ void Insert(NODE root, Rectangle rectangle){
 if (S[0]->parent_ptr == NULL) {
     NODE newRoot = (NODE) malloc(sizeof(struct Node));
     newRoot->is_leaf = 0;
-    newRoot->u.non_leaf_node.num_entries = 1;
-    newRoot->u.non_leaf_node.parent_ptr = NULL;
+    newRoot->u.non_leaf_node.num_entries = 2;
+    newRoot->parent_ptr = NULL;
     
     newRoot->u.non_leaf_node.entries[0].child_ptr = S[0];
     newRoot->u.non_leaf_node.entries[0].mbr = (S[0]->u.);
     
     newRoot->u.non_leaf_node.entries[1].child_ptr = S[1];
-    newRoot->u.non_leaf_node.entries[1].mbr = CalculateMBR(S[1]);
+    newRoot->u.non_leaf_node.entries[1].mbr = (S[1]->u.);
 
     S[0]->parent_ptr = newRoot;
     S[1]->parent_ptr = newRoot;
