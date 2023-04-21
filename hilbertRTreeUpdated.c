@@ -31,6 +31,7 @@ struct LeafEntry {
 struct LeafNode {
     int num_entries;
     struct LeafEntry entries[MAX_CHILDREN];
+    NODE parent_ptr;
 };
 
 struct NonLeafEntry {
@@ -42,6 +43,7 @@ struct NonLeafEntry {
 struct NonLeafNode {
     int num_entries;
     struct NonLeafEntry entries[MAX_CHILDREN];
+    NODE parent_ptr;
 };
 typedef struct Node* NODE;
 struct Node {
@@ -178,7 +180,7 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h){
 
 void Insert(NODE root, Rectangle rectangle){
     NODE leafNode = ChooseLeaf(root, rectangle, rectangle.h);
-    
+    NODE newLeafNode = NULL;
     if(leafNode->u.leaf_node.num_entries < M){
         //LEAF NODE HAS SPACE
         int i = 0;
@@ -196,8 +198,66 @@ void Insert(NODE root, Rectangle rectangle){
         leafNode->u.leaf_node.num_entries++;
     }
     else{
-        NODE newleafNode = HandleOverFlow(leafNode, rectangle);
+        //LEAF NODE IS FULL
+        newLeafNode = HandleOverFlow(leafNode, rectangle);
+        //RETURNS THE NEW LEAF IF SPLIT WAS INEVITABLE
     }
+
+    //Propogate changes upward
+
+    //FORM A SET S CONTAINING L: COOPERATING SIBLINGS AND NEW LEAF (IF ANY)
+     NODE* S = (NODE*)malloc(sizeof(NODE) * MAX_POINTS);
+    for (int i = 0; i < MAX_POINTS; i++) {
+        S[i] = NULL;
+    }
+    S[0] = leafNode;
+    if (newLeafNode) {
+        S[1] = newLeafNode;
+    }
+    int numSiblings = 1;
+    NODE parentNode = leafNode->u.non_leaf_node.parent_ptr;
+    //GO FROM CURRENT NODE TO ROOT FINDING SIBLINGS
+    //WITH LESS THAN MAXIMUM POINTERS
+    while (parentNode) {
+            int index = -1;
+            for (int i = 0; i < parentNode->u.non_leaf_node.num_entries; i++) {
+                if (parentNode->u.non_leaf_node.entries[i].child_ptr == S[0]) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index > 0 && parentNode->u.non_leaf_node.entries[index - 1].child_ptr->u.leaf_node.num_entries < M) {
+                S[++numSiblings] = parentNode->u.non_leaf_node.entries[index - 1].child_ptr;
+            } else if (index == 0 && parentNode->u.non_leaf_node.entries[index + 1].child_ptr->u.leaf_node.num_entries < M) {
+                S[++numSiblings] = parentNode->u.non_leaf_node.entries[index + 1].child_ptr;
+            }
+            S[0] = parentNode;
+            parentNode = parentNode->u.non_leaf_node.parent_ptr;
+    }
+    //HOW TO ADD COOPERATING SIBLINGS?
+    AdjustTree(S);
+
+    //IF NODE SPLIT CAUSED ROOT TO SPLIT, CREATEA NEWROOT WITH CHILDREN
+    //AS RESULTING NODES
+    // Check if the root split
+if (S[0]->parent_ptr == NULL) {
+    NODE newRoot = (NODE) malloc(sizeof(struct Node));
+    newRoot->is_leaf = 0;
+    newRoot->u.non_leaf_node.num_entries = 1;
+    newRoot->u.non_leaf_node.parent_ptr = NULL;
+    
+    newRoot->u.non_leaf_node.entries[0].child_ptr = S[0];
+    newRoot->u.non_leaf_node.entries[0].mbr = (S[0]->u.);
+    
+    newRoot->u.non_leaf_node.entries[1].child_ptr = S[1];
+    newRoot->u.non_leaf_node.entries[1].mbr = CalculateMBR(S[1]);
+
+    S[0]->parent_ptr = newRoot;
+    S[1]->parent_ptr = newRoot;
+
+    root = newRoot;
+}
+
 }
 
 
