@@ -33,6 +33,7 @@ struct LeafNode {
     struct LeafEntry entries[MAX_CHILDREN];
 };
 
+typedef struct NonLeafEntry NonLeafEntry;
 struct NonLeafEntry {
     Rectangle mbr;  // Minimum bounding rectangle
     struct Node* child_ptr;  // Pointer to the child node
@@ -311,7 +312,8 @@ int main() {
 // SEARCH ALGORITHM
 //-> NONLEAF - THOSE WITH MBR INTERSECTING THE QUERY WINDOW W
 //-> LEAF - THOSE WITH MBR INTERSECTING THE QUERY WINDOW W
-int num_results = 0;void search(NODE root, Rectangle rectangle, LeafEntry* results){
+int num_results = 0;
+void search(NODE root, Rectangle rectangle, LeafEntry* results){
     if(root->is_leaf == 1){
         for(int i = 0 ; i<root->u.leaf_node.num_entries; i++){
             if(intersects(root->u.leaf_node.entries[i].mbr, rectangle)){
@@ -333,4 +335,82 @@ bool intersects(Rectangle r1, Rectangle r2){
         r1.top_right.x < r2.bottom_left.x || r2.top_right.x < r1.bottom_left.x || 
         r1.top_right.y < r2.bottom_left.y || r2.top_right.y < r1.bottom_left.y
     );
+}
+
+//handle overflow
+NODE HandleOverFlow(NODE n, Rectangle rectangle){
+    //E = SET OF ALL ENTRIES FROM N AND S-1 COOPERATING SIBLINGS
+    NODE* S = (NODE*)malloc(sizeof(NODE) * MAX_POINTS);
+    for (int i = 0; i < MAX_POINTS; i++) {
+        S[i] = NULL;
+    }
+    S[0] = n;
+    int numSiblings = 0;
+    NODE parentNode = n->parent_ptr;
+    //GO FROM CURRENT NODE TO ROOT FINDING SIBLINGS
+    //WITH LESS THAN MAXIMUM POINTERS
+    while (parentNode) {
+            int index = -1;
+            for (int i = 0; i < parentNode->u.non_leaf_node.num_entries; i++) {
+                if (parentNode->u.non_leaf_node.entries[i].child_ptr == n) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index > 0 && parentNode->u.non_leaf_node.entries[index - 1].child_ptr->u.leaf_node.num_entries < M) {
+                S[++numSiblings] = parentNode->u.non_leaf_node.entries[index - 1].child_ptr;
+            } else if (index == 0 && parentNode->u.non_leaf_node.entries[index + 1].child_ptr->u.leaf_node.num_entries < M) {
+                S[++numSiblings] = parentNode->u.non_leaf_node.entries[index + 1].child_ptr;
+            }
+            S[++numSiblings] = parentNode;
+            parentNode = parentNode->parent_ptr;
+    }
+
+    int num_entries = 0;
+    Rectangle E[MAX_POINTS];
+    
+    for(int i = 0; i<numSiblings; i++){
+        if(S[i]->is_leaf == 1){
+            for(int j = 0; j<S[i]->u.leaf_node.num_entries; j++){
+                E[num_entries++] = S[i]->u.leaf_node.entries[j].mbr;
+            }
+        }
+        else{
+            for(int j = 0; j<S[i]->u.non_leaf_node.num_entries; j++){
+                E[num_entries++] = S[i]->u.non_leaf_node.entries[j].mbr;
+            }
+        }
+    }
+    //ADD  R TO E
+    E[num_entries++] = rectangle;
+
+    // CHECK IF ANY NODE IS NOT FULL
+    bool allFull = true;
+    for(int i = 0; i<numSiblings; i++){
+        if(S[i]->is_leaf == 1){
+            if(S[i]->u.leaf_node.num_entries < M){
+                allFull = false;
+            }
+        }
+        else{
+            if(S[i]->u.non_leaf_node.num_entries < M){
+                allFull = false;
+            }
+        }
+    }
+
+    //IF ATLEAST ONE OF SIBLINGS IS NOT FULL
+    if(!allFull){
+
+        //DISTRIBUTE E EVENLY AMONG THE S NODES ACCORDING TO THE HILBERT VALUE
+    }
+    else{
+        //CREATE A NEW NODE NN
+        NODE NN = (NODE)malloc(sizeof(struct Node));
+        //DISTRIBUTE E EVENLY AMONG THE S+1 NODES ACCORDING TO THE HILBERT VALUE
+
+        
+        return NN;
+    }
+    return NULL;
 }
