@@ -1,4 +1,4 @@
-oid Insert(NODE root, Rectangle r){
+void Insert(NODE root, Rectangle r){
     /* INSERTS A NEW RECTANGLE R IN THE HILBERT R-TREE*/
     NODE leafNode = ChooseLeaf(root, r, r.h); //SELECT A LEAF NODE IN WHICH TO PLACE R
 
