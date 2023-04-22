@@ -141,6 +141,53 @@ unsigned long long HilbertValue(Point bottom_left, Point top_right) {
     
     return hilbert_value;
 }
+//HELPER FUNCTION TO CHECK IN ARRAY
+bool isInArray(NODE* arr, int size, NODE node) {
+    for (int i = 0; i < size; i++) {
+        if (arr[i] == node) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+/*ADJUST TREE ASCEND FROM LEAF TOWARDS ROOT AND ADJJUST MBR AND LHV VALUES
+& PROPOGATE SIBLINGS */
+void AdjustTree(NODE NN, NODE* S, int s_size){
+    //STOP IF ROOT LEVEL REACHED    
+    NODE N = S[0];
+    NODE Np = N->parent_ptr;
+    //PARENT = NULL; ROOT LEVEL
+    if(!Np){
+        return;
+    }
+    //INSERT SPLIT NODE INTO PARENT
+    if(NN){
+        insert(Np, NN);
+    }
+
+    //ADJUST MBR AND LHV IN PARENT LEVEL
+    //P = SET OF PARENT NODES FOR NODES IN S
+    NODE* P = (NODE*)malloc(sizeof(struct Node)*MAX_POINTS);
+    int numParents = 0;
+    for(int i = 0; i<s_size; i++){
+        NODE parent = S[i]->parent_ptr;
+        if(parent && !isInArray(P, numParents, parent)){
+            P[numParents++] = parent;
+        }
+    }
+    //ADJUST MBR AND LHV VALUES
+    for (int i = 0; i < numParents; i++) {
+        NODE parent = P[i];
+        adjustMBR(parent);
+        adjustLHV(parent);
+    }
+
+    //NEXT LEVEL
+    AdjustTree(NN, P, numParents);
+}
+
 
 
 NODE ChooseLeaf(NODE n, Rectangle r, int h){
@@ -241,78 +288,35 @@ void Insert(NODE root, Rectangle rectangle){
     //IF NODE SPLIT CAUSED ROOT TO SPLIT, CREATEA NEWROOT WITH CHILDREN
     //AS RESULTING NODES
     // Check if the root split
-if (S[0]->parent_ptr == NULL) {
-    NODE newRoot = (NODE) malloc(sizeof(struct Node));
-    newRoot->is_leaf = 0;
-    newRoot->u.non_leaf_node.num_entries = 2;
-    newRoot->parent_ptr = NULL;
-    
-    newRoot->u.non_leaf_node.entries[0].child_ptr = S[0];
-    newRoot->u.non_leaf_node.entries[0].mbr = (S[0]->u.);
-    
-    newRoot->u.non_leaf_node.entries[1].child_ptr = S[1];
-    newRoot->u.non_leaf_node.entries[1].mbr = (S[1]->u.);
+    if (S[0]->parent_ptr == NULL) {
+        NODE newRoot = (NODE) malloc(sizeof(struct Node));
+        newRoot->is_leaf = 0;
+        newRoot->u.non_leaf_node.num_entries = 2;
+        newRoot->parent_ptr = NULL;
+        
+        newRoot->u.non_leaf_node.entries[0].child_ptr = S[0];
+        // newRoot->u.non_leaf_node.entries[0].mbr = (S[0]->u.);
+        
+        newRoot->u.non_leaf_node.entries[1].child_ptr = S[1];
+        // newRoot->u.non_leaf_node.entries[1].mbr = (S[1]->u.);
 
-    S[0]->parent_ptr = newRoot;
-    S[1]->parent_ptr = newRoot;
+        S[0]->parent_ptr = newRoot;
+        S[1]->parent_ptr = newRoot;
 
-    root = newRoot;
+        root = newRoot;
+    }
+
 }
 
-}
 
 
-int main() {
-    FILE *fp;
-    Point points[MAX_POINTS];
-    int num_points = 0;
-
-    // Open the file containing the data points
-    fp = fopen("data.txt", "r");
-    if (fp == NULL) {
-        printf("Error opening file.\n");
-        return 1;
-    }
-
-    // Read the data points from the file
-    while (fscanf(fp, "%d %d\n", &points[num_points].x, &points[num_points].y) == 2) {
-        num_points++;
-        printf("POINT  = %d %d\n", points[num_points-1].x, points[num_points-1].y);
-    }
-
-    // Close the file
-    fclose(fp);
-
-    //LETS ASSUME THE RECTANGLES INITIALLY ARE THE DATA POINTS
-    //AND THEIR CENTRES ARE THE POINTS TOO
-
-    // CREATE RECTANGLES
-    Rectangle rectangles[MAX_POINTS];
-    for(int i = 0; i<num_points; i++){
-        rectangles[i].bottom_left = points[i];
-        rectangles[i].top_right = points[i];
-        rectangles[i].h = hilbert_value(points[i]);        
-    }
-
-
-    
-    NODE root = (NODE)malloc(sizeof(struct Node));
-    root->is_leaf = 1; //INITIALLY ROOT IS A LEAF NODE
-
-    //CREATE LEAF ENTRIES AND INSERT TO ROOT NODE
-    for(int i = 0; i<MAX_POINTS; i++){
-        Insert(root, rectangles[i]); //INSERT(NODE ROOT, RECTANGLE R)
-    }
-    
-
-    return 0;
-}
 
 
 // SEARCH ALGORITHM
 //-> NONLEAF - THOSE WITH MBR INTERSECTING THE QUERY WINDOW W
 //-> LEAF - THOSE WITH MBR INTERSECTING THE QUERY WINDOW W
 int num_results = 0;
+/*ALL RECTANGLES THAT OVERLAP A SEARCH RECTANGLE*/
 void search(NODE root, Rectangle rectangle, LeafEntry* results){
     if(root->is_leaf == 1){
         for(int i = 0 ; i<root->u.leaf_node.num_entries; i++){
@@ -404,6 +408,7 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle){
 
         //DISTRIBUTE E EVENLY AMONG THE S NODES ACCORDING TO THE HILBERT VALUE
     }
+    //IF ALL COOPERATING SIBLINGS ARE FULL
     else{
         //CREATE A NEW NODE NN
         NODE NN = (NODE)malloc(sizeof(struct Node));
@@ -413,4 +418,137 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle){
         return NN;
     }
     return NULL;
+}
+NODE* cooperatingSiblings(NODE n){
+    NODE* S = (NODE*)malloc(sizeof(NODE) * MAX_POINTS);
+    for (int i = 0; i < MAX_POINTS; i++) {
+        S[i] = NULL;
+    }
+    S[0] = n;
+    int numSiblings = 0;
+    NODE parentNode = n->parent_ptr;
+    //GO FROM CURRENT NODE TO ROOT FINDING SIBLINGS
+    //WITH LESS THAN MAXIMUM POINTERS
+    while (parentNode) {
+            int index = -1;
+            for (int i = 0; i < parentNode->u.non_leaf_node.num_entries; i++) {
+                if (parentNode->u.non_leaf_node.entries[i].child_ptr == n) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index > 0 && parentNode->u.non_leaf_node.entries[index - 1].child_ptr->u.leaf_node.num_entries < M) {
+                S[++numSiblings] = parentNode->u.non_leaf_node.entries[index - 1].child_ptr;
+            } else if (index == 0 && parentNode->u.non_leaf_node.entries[index + 1].child_ptr->u.leaf_node.num_entries < M) {
+                S[++numSiblings] = parentNode->u.non_leaf_node.entries[index + 1].child_ptr;
+            }
+            S[++numSiblings] = parentNode;
+            parentNode = parentNode->parent_ptr;
+    }
+    return S;
+}
+/*FIND THE LEAF NODE CONTAINING A RECTANGLE R*/
+NODE findLeaf(NODE root, Rectangle rectangle){
+    if(root->is_leaf == 1){
+        return root;
+    }
+
+    /* IF NON LEAF; FIND OVERLAPPING ENTRY*/
+    int i;
+    for(int i = 0; i<root->u.non_leaf_node.num_entries; i++){
+        if(intersects(root->u.non_leaf_node.entries[i].mbr, rectangle)){
+            break;
+        }
+    }
+    return findLeaf(root->u.non_leaf_node.entries[i].child_ptr, rectangle);
+}
+/*DELETE(RECTANGLE R)*/
+void delete(NODE root, Rectangle rectangle){
+    //FIND THE HOST LEAF
+    NODE n = findLeaf(root, rectangle);
+
+    //FIND INDEX OF ENTRY
+    int index = -1;
+    for (int i = 0; i < n->u.leaf_node.num_entries; i++)
+    {
+        if (n->u.leaf_node.entries[i].mbr.bottom_left.x == rectangle.bottom_left.x &&
+            n->u.leaf_node.entries[i].mbr.bottom_left.y == rectangle.bottom_left.y &&
+            n->u.leaf_node.entries[i].mbr.top_right.x == rectangle.top_right.x &&
+            n->u.leaf_node.entries[i].mbr.top_right.y == rectangle.top_right.y)
+        {
+            index = i;
+            break;
+        }
+    }
+
+    if(index == -1){
+        printf("ENTRY NOT FOUND");
+        return;
+    }
+
+    //ENTRY FOUND; INDEX>=0 DELETE ENTRY AT INDEX I
+    for (int i = index; i < n->u.leaf_node.num_entries-1; i++)
+    {
+        n->u.leaf_node.entries[i] = n->u.leaf_node.entries[i + 1];
+    }
+    n->u.leaf_node.num_entries--;
+    //LEAF NODE -> NO LHV
+
+    //IF NODE UNDERFLOWS
+    if (n->u.leaf_node.num_entries < MIN_CHILDREN)
+    {
+        //BORROW SOME ENTRIES FROM S COOPERATING SIBLINGS
+        //IF ALL SIBLINGS READS TO UNDERFLOW; MERGE S+1 TO S NODES
+        //ADJUST THE RESULTING NODES
+    }
+    //ADJUST MBR AND LHV IN PARENT LEVELS
+    //FORM A SET S CONTAINING L AND COOPERATING SIBLINGS [IF UNDERFLOW HAD OCCURED]
+    
+    NODE* S = cooperatingSiblings(n);
+    AdjustTree(S);
+}
+
+int main() {
+    FILE *fp;
+    Point points[MAX_POINTS];
+    int num_points = 0;
+
+    // Open the file containing the data points
+    fp = fopen("data.txt", "r");
+    if (fp == NULL) {
+        printf("Error opening file.\n");
+        return 1;
+    }
+
+    // Read the data points from the file
+    while (fscanf(fp, "%d %d\n", &points[num_points].x, &points[num_points].y) == 2) {
+        num_points++;
+        printf("POINT  = %d %d\n", points[num_points-1].x, points[num_points-1].y);
+    }
+
+    // Close the file
+    fclose(fp);
+
+    //LETS ASSUME THE RECTANGLES INITIALLY ARE THE DATA POINTS
+    //AND THEIR CENTRES ARE THE POINTS TOO
+
+    // CREATE RECTANGLES
+    Rectangle rectangles[MAX_POINTS];
+    for(int i = 0; i<num_points; i++){
+        rectangles[i].bottom_left = points[i];
+        rectangles[i].top_right = points[i];
+        rectangles[i].h = hilbert_value(points[i]);        
+    }
+    
+
+    NODE root = (NODE)malloc(sizeof(struct Node));
+    root->is_leaf = 1; //INITIALLY ROOT IS A LEAF NODE
+
+    //CREATE LEAF ENTRIES AND INSERT TO ROOT NODE
+    for(int i = 0; i<MAX_POINTS; i++){
+        Insert(root, rectangles[i]); //INSERT(NODE ROOT, RECTANGLE R)
+    }
+    
+
+    return 0;
 }
