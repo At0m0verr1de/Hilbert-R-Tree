@@ -195,3 +195,12 @@ uint32_t hilbertXYToIndex(uint32_t n, uint32_t x, uint32_t y)
 
     return ((interleave(i1) << 1) | interleave(i0)) >> (32 - 2 * n);
 }
+
+// Calculate the Hilbert value of a rectangle
+uint32_t hilbertValue(Rectangle rect){
+    uint32_t x = (rect.bottom_left.x + rect.top_right.x)/2;
+    uint32_t y = (rect.bottom_left.y + rect.top_right.y)/2;
+    uint32_t hilbert_value = hilbertXYToIndex(16, x, y);
+    return hilbert_value;
+}
+
