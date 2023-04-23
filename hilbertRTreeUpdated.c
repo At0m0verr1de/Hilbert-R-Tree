@@ -11,7 +11,8 @@
 #define MAX_POINTS 21
 int CURRENT_ID = 1;
 int num_results = 0;
-
+bool root_split = false;
+NODE root1 = NULL; NODE root2 = NULL;
 typedef struct Point Point;
 struct Point{
     int x,y;
@@ -164,8 +165,7 @@ bool rectangles_equal(Rectangle* rect1, Rectangle* rect2) {
     if (rect1->bottom_left.x != rect2->bottom_left.x ||
         rect1->bottom_left.y != rect2->bottom_left.y ||
         rect1->top_right.x != rect2->top_right.x ||
-        rect1->top_right.y != rect2->top_right.y ||
-        rect1->h != rect2->h) {
+        rect1->top_right.y != rect2->top_right.y) {
         return false;
     }
     return true;
@@ -173,9 +173,6 @@ bool rectangles_equal(Rectangle* rect1, Rectangle* rect2) {
 
 bool nodes_equal(NODE node1, NODE node2) {
     if (node1->is_leaf != node2->is_leaf) {
-        return false;
-    }
-    if (node1->parent_ptr != node2->parent_ptr) {
         return false;
     }
     if (node1->is_leaf) {
@@ -390,6 +387,13 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h){
     /* DESCEND UNTIL A LEAF NODE IS REACHED*/
     return ChooseLeaf(next_node, r, h);
 }
+
+int compare(const void *a, const void *b) {
+    const struct Rectangle *s1 = a;
+    const struct Rectangle *s2 = b;
+    return s1->h - s2->h;
+}
+
 NODE HandleOverFlow(NODE n, Rectangle rectangle){
     //E = SET OF ALL ENTRIES FROM N AND S-1 COOPERATING SIBLINGS
     NODE* S = (NODE*)malloc(sizeof(NODE) * MAX_POINTS);
@@ -431,20 +435,90 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle){
 
     //IF ATLEAST ONE OF SIBLINGS IS NOT FULL
     if(!allFull){
-        
+        /*num_entries: total number of entries*/
+        /*num_siblings+!: total number of siblings to distribute in */
+
+        //SORT THE ENTRIES IN E BASED ON THEIR HILBERT VALUE
+        int n = sizeof(E) / sizeof(E[0]);
+        qsort(E, n, sizeof(struct Rectangle), compare);
+
+        int num_entries_per_node = num_entries/numSiblings;
+        int remainder_entries = num_entries%numSiblings;
+        //FOR EACH SIBLING NODE
+        int currIndex = 0;
+        for(int i = 0; i<numSiblings; i++){
+            int startIndex = 0;
+            S[i]->u.leaf_node.num_entries = 0;
+            for(int j = currIndex; j<currIndex+num_entries_per_node; j++){
+                //INSERT THE ENTRY
+                S[i]->u.leaf_node.entries[startIndex++].mbr = E[currIndex++];
+                S[i]->u.leaf_node.entries[startIndex].obj_id = ++CURRENT_ID;
+                S[i]->u.leaf_node.num_entries++;
+            }
+        }
+        int j = 0;
+        for(int i = 0; i<remainder_entries; i++){
+                if(S[j]->u.leaf_node.num_entries<MAX_CHILDREN){
+                    S[j]->u.leaf_node.entries[S[j]->u.leaf_node.num_entries].mbr = E[currIndex++];
+                    S[j]->u.leaf_node.entries[S[j]->u.leaf_node.num_entries].obj_id = ++CURRENT_ID;
+                    S[j]->u.leaf_node.num_entries++;
+                }else{
+                    j++;
+                }
+            
+        }   
         //DISTRIBUTE E EVENLY AMONG THE S NODES ACCORDING TO THE HILBERT VALUE
     }
     //IF ALL COOPERATING SIBLINGS ARE FULL
     else{
-        //CREATE A NEW NODE NN
+        // DISTRIBUTE E EVENLY AMONG THE S+1 NODES ACCORDING TO THE HILBERT VALUE
+        // CREATE A NEW NODE NN
         NODE NN = (NODE)malloc(sizeof(struct Node));
-        //DISTRIBUTE E EVENLY AMONG THE S+1 NODES ACCORDING TO THE HILBERT VALUE
+        if(n->parent_ptr == NULL){
+            root_split = true;
+        }
+        S[numSiblings++] = NN; //ADD THE NEW NODE TO THE SET OF SIBLINGS 
 
         
+        int n = sizeof(E) / sizeof(E[0]);
+        qsort(E, n, sizeof(struct Rectangle), compare);
+
+        int num_entries_per_node = num_entries / numSiblings;
+        int remainder_entries = num_entries % numSiblings;
+        // FOR EACH SIBLING NODE
+        int currIndex = 0;
+        for (int i = 0; i < numSiblings; i++)
+        {
+            int startIndex = 0;
+            S[i]->u.leaf_node.num_entries = 0;
+            for (int j = currIndex; j < currIndex + num_entries_per_node; j++)
+            {
+                    // INSERT THE ENTRY
+                    S[i]->u.leaf_node.entries[startIndex++].mbr = E[currIndex++];
+                    S[i]->u.leaf_node.entries[startIndex].obj_id = ++CURRENT_ID;
+                    S[i]->u.leaf_node.num_entries++;
+            }
+        }
+        int j = 0;
+        for (int i = 0; i < remainder_entries; i++)
+        {
+            if (S[j]->u.leaf_node.num_entries < MAX_CHILDREN)
+            {
+                    S[j]->u.leaf_node.entries[S[j]->u.leaf_node.num_entries].mbr = E[currIndex++];
+                    S[j]->u.leaf_node.entries[S[j]->u.leaf_node.num_entries].obj_id = ++CURRENT_ID;
+                    S[j]->u.leaf_node.num_entries++;
+            }
+            else
+            {
+                    j++;
+            }
+        }
+
         return NN;
     }
     return NULL;
 }
+//RETURNS TRUE IF ROOT NODE WAS SPLIT
 void AdjustTree(NODE N, NODE NN, NODE* S, int s_size){
     //STOP IF ROOT LEVEL REACHED  
     NODE Np = N->parent_ptr;
@@ -460,7 +534,14 @@ void AdjustTree(NODE N, NODE NN, NODE* S, int s_size){
             InsertNode(Np, NN);
         }
         else{
-            // new_node = HandleOverFlowNode(Np, NN);
+            //PARENT NODE MUST BE SPLIT
+            new_node = HandleOverFlowNode(Np, NN);
+            //IF ROOT NODE WAS SPLIT BH HANDLEOVERFLOW
+            if(Np->parent_ptr == NULL && new_node != NULL){
+                root_split = true;
+                root1 = Np; root2 = new_node;
+            }
+
         }
         // Insert(Np, NN);
     }
@@ -506,7 +587,7 @@ void Insert(NODE root, Rectangle rectangle){
         entry.obj_id = ++CURRENT_ID;
         leafNode->u.leaf_node.entries[i] = entry;
         leafNode->u.leaf_node.num_entries++;
-        return;
+        
     }
     else{
         //LEAF NODE IS FULL
@@ -517,33 +598,38 @@ void Insert(NODE root, Rectangle rectangle){
     //Propogate changes upward
 
     //FORM A SET S CONTAINING L: COOPERATING SIBLINGS AND NEW LEAF (IF ANY)
-     NODE* S = (NODE*)malloc(sizeof(NODE) * MAX_POINTS);
+
     int numSiblings = numberOfSiblings(leafNode);
-    S = cooperatingSiblings(leafNode);
+    NODE* S = cooperatingSiblings(leafNode);
     
+    root_split = false;
     AdjustTree(leafNode, newLeafNode, S, numSiblings+1);
 
     //IF NODE SPLIT CAUSED ROOT TO SPLIT, CREATEA NEWROOT WITH CHILDREN
     //AS RESULTING NODES
     // Check if the root split
-    if (S[0]->parent_ptr == NULL) {
+    if (root_split) {
         NODE newRoot = (NODE) malloc(sizeof(struct Node));
         newRoot->is_leaf = 0;
         newRoot->u.non_leaf_node.num_entries = 2;
         newRoot->parent_ptr = NULL;
         
-        newRoot->u.non_leaf_node.entries[0].child_ptr = S[0];
+        newRoot->u.non_leaf_node.entries[0].child_ptr = root1;
+        newRoot->u.non_leaf_node.entries[0].largest_hilbert_value = calculateLHV(newRoot->u.non_leaf_node.entries[0]);
+        newRoot->u.non_leaf_node.entries[0].mbr = calculateEntryMBR(newRoot->u.non_leaf_node.entries[0]);
         // newRoot->u.non_leaf_node.entries[0].mbr = (S[0]->u.);
         
-        newRoot->u.non_leaf_node.entries[1].child_ptr = S[1];
+        newRoot->u.non_leaf_node.entries[1].child_ptr = root2;
+        newRoot->u.non_leaf_node.entries[1].largest_hilbert_value = calculateLHV(newRoot->u.non_leaf_node.entries[1]);
+        newRoot->u.non_leaf_node.entries[1].mbr = calculateEntryMBR(newRoot->u.non_leaf_node.entries[1]);
+
         // newRoot->u.non_leaf_node.entries[1].mbr = (S[1]->u.);
 
-        S[0]->parent_ptr = newRoot;
-        S[1]->parent_ptr = newRoot;
+        root1->parent_ptr = newRoot;
+        root2->parent_ptr = newRoot;
 
         root = newRoot;
     }
-
 }
 
 // SEARCH ALGORITHM
