@@ -123,15 +123,7 @@ void printMBR(Rectangle rect){
     return;
 }
 
-void InsertNode(NODE parent,NODE newNode){
-    // newNode->is_leaf=0;
-    // parent->is_leaf=0;
-    newNode->parent_ptr=parent;
-    parent->u.non_leaf_node.num_entries++;
-    parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1].child_ptr=newNode;
-    parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1].mbr=calculateEntryMBR(parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1]);
-    parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1].largest_hilbert_value = calculateLHV(parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1]);
-}
+
 
 // Compute the Hilbert value for a given rectangle defined by its bottom-left and top-right corners
 unsigned long long HilbertValue(Point bottom_left, Point top_right) {
@@ -220,7 +212,28 @@ bool nodes_equal(NODE node1, NODE node2) {
     }
     return true;
 }
-
+int calculateLHV(NonLeafEntry entry){
+    int max_h = -INFINITY;
+    NODE node = entry.child_ptr;
+    //CALCULATE MAXIMUM H OF NODE
+    if(node->is_leaf == 1){
+        for(int i = 0; i<node->u.leaf_node.num_entries; i++){
+            if(node->u.leaf_node.entries[i].mbr.h > max_h){
+                max_h = node->u.leaf_node.entries[i].mbr.h;
+            }
+        }
+        return max_h;
+    }
+    else{
+        //NON LEAF CHILD NODE
+        for(int i = 0; i<node->u.non_leaf_node.num_entries; i++){
+            if(node->u.non_leaf_node.entries[i].mbr.h > max_h){
+                max_h = node->u.non_leaf_node.entries[i].mbr.h;
+            }
+        }
+        return max_h;
+    }
+}
 //HELPER FUNCTION TO CHECK IN ARRAY
 bool isInArray(NODE* arr, int size, NODE node) {
     for (int i = 0; i < size; i++) {
@@ -255,38 +268,71 @@ uint64_t xy2d(uint32_t n, double x, double y) {
 
 // Assumes the maximum x and y coordinates are 2^31-1
 #define MAX_COORDINATE 2147483647
-uint32_t get_hilbert_order(uint32_t num_dims, uint32_t bits_per_dim) {
-    uint32_t max_dim_index = (1 << bits_per_dim) - 1;
-    uint32_t max_index = max_dim_index * num_dims;
-    uint32_t order = 1;
-    while (order < max_index) {
-        order <<= 1;
+// uint32_t get_hilbert_order(uint32_t num_dims, uint32_t bits_per_dim) {
+//     uint32_t max_dim_index = (1 << bits_per_dim) - 1;
+//     uint32_t max_index = max_dim_index * num_dims;
+//     uint32_t order = 1;
+//     while (order < max_index) {
+//         order <= 1;
+//     }
+//     return order;
+// }
+// uint64_t calculate_hilbert_value(double x, double y) {
+//     // Scale the x and y coordinates to the range [0, 1]
+//     double scaled_x = x / MAX_COORDINATE;
+//     double scaled_y = y / MAX_COORDINATE;
+
+//     // Get the Hilbert curve order that fits the coordinates
+//     uint32_t order = get_hilbert_order(MAX_COORDINATE, 2);
+
+//     // Calculate the Hilbert value of the scaled point
+//     uint64_t hilbert_value = xy2d(order, scaled_x, scaled_y);
+
+//     return hilbert_value;
+// }
+Rectangle calculateEntryMBR(NonLeafEntry entry){
+    //FOR EACH NON LEAF ENTRY; CALCULATE MBR FROM CHILD  NODES
+    //FIND -> LOWEST X, LOWEST Y  AND HIGHEST X, HIGHEST Y
+    Rectangle mbr;
+    int low_x = INFINITY; int low_y = INFINITY;
+    int high_x = -INFINITY; int high_y = -INFINITY;
+
+    NODE next_node = entry.child_ptr;
+    //IF LEAF POINTER; FIND THE COORDINATES FROM ENTRIES
+    if(next_node->is_leaf == 1){
+        for(int i = 0; i<next_node->u.leaf_node.num_entries; i++){
+            Rectangle obj_mbr = next_node->u.leaf_node.entries[i].mbr;
+            low_x = (obj_mbr.bottom_left.x < low_x) ? obj_mbr.bottom_left.x : low_x;
+            low_y = (obj_mbr.bottom_left.y < low_y) ? obj_mbr.bottom_left.y : low_y;
+            high_x = (obj_mbr.top_right.x > high_x) ? obj_mbr.top_right.x : high_x;
+            high_y = (obj_mbr.top_right.y > high_y) ? obj_mbr.top_right.y : high_y;
+        }
+
+    } else{
+        //NON LEAF NODE: 
+        for (int i = 0; i < next_node->u.non_leaf_node.num_entries; i++) {
+            Rectangle child_mbr = next_node->u.non_leaf_node.entries[i].mbr;
+            low_x = (child_mbr.bottom_left.x < low_x) ? child_mbr.bottom_left.x : low_x;
+            low_y = (child_mbr.bottom_left.y < low_y) ? child_mbr.bottom_left.y : low_y;
+            high_x = (child_mbr.top_right.x > high_x) ? child_mbr.top_right.x : high_x;
+            high_y = (child_mbr.top_right.y > high_y) ? child_mbr.top_right.y : high_y;
+        }
     }
-    return order;
-}
-uint64_t calculate_hilbert_value(double x, double y) {
-    // Scale the x and y coordinates to the range [0, 1]
-    double scaled_x = x / MAX_COORDINATE;
-    double scaled_y = y / MAX_COORDINATE;
-
-    // Get the Hilbert curve order that fits the coordinates
-    uint32_t order = get_hilbert_order(MAX_COORDINATE, 2);
-
-    // Calculate the Hilbert value of the scaled point
-    uint64_t hilbert_value = xy2d(order, scaled_x, scaled_y);
-
-    return hilbert_value;
+    mbr.bottom_left.x = low_x;
+    mbr.bottom_left.y = low_y;
+    mbr.top_right.x = high_x;
+    mbr.top_right.y = high_y;
+    mbr.h = HilbertValue(mbr.bottom_left, mbr.top_right);
+    return mbr;
 }
 
 /*ADJUST TREE ASCEND FROM LEAF TOWARDS ROOT AND ADJUST MBR AND LHV VALUES*/
 void adjustLHV(NODE parentNode){
-    if(parentNode == NULL){
-        return;
-    }
+    if(parentNode != NULL){
     for(int i = 0; i<parentNode->u.non_leaf_node.num_entries; i++){
         parentNode->u.non_leaf_node.entries[i].largest_hilbert_value = calculateLHV(parentNode->u.non_leaf_node.entries[i]);
     }
-    adjustLHV(parentNode->parent_ptr);
+    adjustLHV(parentNode->parent_ptr);}
 }
 void adjustMBR(NODE parentNode){
     if(parentNode == NULL){
@@ -297,45 +343,14 @@ void adjustMBR(NODE parentNode){
     }
     adjustMBR(parentNode->parent_ptr);
 }
-void AdjustTree(NODE N, NODE NN, NODE* S, int s_size){
-    //STOP IF ROOT LEVEL REACHED  
-    NODE Np = N->parent_ptr;
-    NODE new_node = NULL;
-    //PARENT = NULL; ROOT LEVEL
-    if(!Np){
-        return;
-    }
-    //INSERT SPLIT NODE INTO PARENT
-    if(NN){
-        //INSERT IN CORRECCT ORDER IF ROOM IN PARENT NODE
-        if(Np->u.non_leaf_node.num_entries < MAX_CHILDREN){
-            InsertNode(Np, NN);
-        }
-        else{
-            new_node = HandleOverFlowNode(Np, NN);
-        }
-        // Insert(Np, NN);
-    }
-    //ADJUST MBR AND LHV IN PARENT LEVEL
-    //P = SET OF PARENT NODES FOR NODES IN S
-    NODE* P = (NODE*)malloc(sizeof(struct Node)*MAX_POINTS);
-    int numParents = 0;
-    for(int i = 0; i<s_size; i++){
-        NODE parent = S[i]->parent_ptr;
-        if(parent && !isInArray(P, numParents, parent)){
-           
-        P[numParents++] = parent;
-        }
-    }
-    //ADJUST MBR AND LHV VALUES
-    for (int i = 0; i < numParents; i++) {
-        NODE parent = P[i];
-        adjustMBR(parent);
-        adjustLHV(parent);
-    }
-
-    //NEXT LEVEL
-    AdjustTree(Np, new_node, P, numParents);
+void InsertNode(NODE parent,NODE newNode){
+    // newNode->is_leaf=0;
+    // parent->is_leaf=0;
+    newNode->parent_ptr=parent;
+    parent->u.non_leaf_node.num_entries++;
+    parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1].child_ptr=newNode;
+    parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1].mbr=calculateEntryMBR(parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1]);
+    parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1].largest_hilbert_value = calculateLHV(parent->u.non_leaf_node.entries[(parent->u.non_leaf_node.num_entries)-1]);
 }
 
 
@@ -378,30 +393,8 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h){
 NODE HandleOverFlow(NODE n, Rectangle rectangle){
     //E = SET OF ALL ENTRIES FROM N AND S-1 COOPERATING SIBLINGS
     NODE* S = (NODE*)malloc(sizeof(NODE) * MAX_POINTS);
-    for (int i = 0; i < MAX_POINTS; i++) {
-        S[i] = NULL;
-    }
-    S[0] = n;
-    int numSiblings = 0;
-    NODE parentNode = n->parent_ptr;
-    //GO FROM CURRENT NODE TO ROOT FINDING SIBLINGS
-    //WITH LESS THAN MAXIMUM POINTERS
-    while (parentNode) {
-            int index = -1;
-            for (int i = 0; i < parentNode->u.non_leaf_node.num_entries; i++) {
-                if (parentNode->u.non_leaf_node.entries[i].child_ptr == n) {
-                    index = i;
-                    break;
-                }
-            }
-            if (index > 0 && parentNode->u.non_leaf_node.entries[index - 1].child_ptr->u.leaf_node.num_entries < M) {
-                S[++numSiblings] = parentNode->u.non_leaf_node.entries[index - 1].child_ptr;
-            } else if (index == 0 && parentNode->u.non_leaf_node.entries[index + 1].child_ptr->u.leaf_node.num_entries < M) {
-                S[++numSiblings] = parentNode->u.non_leaf_node.entries[index + 1].child_ptr;
-            }
-            S[++numSiblings] = parentNode;
-            parentNode = parentNode->parent_ptr;
-    }
+    S = cooperatingSiblings(n);
+    int numSiblings = numberOfSiblings(n);
 
     int num_entries = 0;
     Rectangle E[MAX_POINTS];
@@ -452,6 +445,47 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle){
     }
     return NULL;
 }
+void AdjustTree(NODE N, NODE NN, NODE* S, int s_size){
+    //STOP IF ROOT LEVEL REACHED  
+    NODE Np = N->parent_ptr;
+    NODE new_node = NULL;
+    //PARENT = NULL; ROOT LEVEL
+    if(!Np){
+        return;
+    }
+    //INSERT SPLIT NODE INTO PARENT
+    if(NN){
+        //INSERT IN CORRECCT ORDER IF ROOM IN PARENT NODE
+        if(Np->u.non_leaf_node.num_entries < MAX_CHILDREN){
+            InsertNode(Np, NN);
+        }
+        else{
+            // new_node = HandleOverFlowNode(Np, NN);
+        }
+        // Insert(Np, NN);
+    }
+    //ADJUST MBR AND LHV IN PARENT LEVEL
+    //P = SET OF PARENT NODES FOR NODES IN S
+    NODE* P = (NODE*)malloc(sizeof(struct Node)*MAX_POINTS);
+    int numParents = 0;
+    for(int i = 0; i<s_size; i++){
+        NODE parent = S[i]->parent_ptr;
+        if(parent && !isInArray(P, numParents, parent)){
+           
+        P[numParents++] = parent;
+        }
+    }
+    //ADJUST MBR AND LHV VALUES
+    for (int i = 0; i < numParents; i++) {
+        NODE parent = P[i];
+        adjustMBR(parent);
+        adjustLHV(parent);
+    }
+
+    //NEXT LEVEL
+    AdjustTree(Np, new_node, P, numParents);
+}
+
 void Insert(NODE root, Rectangle rectangle){
     NODE leafNode = ChooseLeaf(root, rectangle, rectangle.h);
     NODE newLeafNode = NULL;
@@ -720,7 +754,7 @@ void delete(NODE root, Rectangle rectangle){
 
                 //DELETE THE ENTRY COMPLETELY
                 for(int i = index; i < parentNode->u.non_leaf_node.num_entries - 1; i++){
-                        parentNode->u.non_leaf_node.entries[i] = parentNode->u.non_leaf_node.entries[i + 1];
+                        parentNode->u.non_leaf_node.entries[i] = parentNode->u.non_leaf_node.entries[i+1];
                 }
                 parentNode->u.non_leaf_node.num_entries--;
                 //UPDATE LHV AND MBR OF NODE AND ENTRY
@@ -739,64 +773,30 @@ void delete(NODE root, Rectangle rectangle){
     free(S);
 }
 
-Rectangle calculateEntryMBR(NonLeafEntry entry){
-    //FOR EACH NON LEAF ENTRY; CALCULATE MBR FROM CHILD  NODES
-    //FIND -> LOWEST X, LOWEST Y  AND HIGHEST X, HIGHEST Y
-    Rectangle mbr;
-    int low_x = INFINITY; int low_y = INFINITY;
-    int high_x = -INFINITY; int high_y = -INFINITY;
 
-    NODE next_node = entry.child_ptr;
-    //IF LEAF POINTER; FIND THE COORDINATES FROM ENTRIES
-    if(next_node->is_leaf == 1){
-        for(int i = 0; i<next_node->u.leaf_node.num_entries; i++){
-            Rectangle obj_mbr = next_node->u.leaf_node.entries[i].mbr;
-            low_x = (obj_mbr.bottom_left.x < low_x) ? obj_mbr.bottom_left.x : low_x;
-            low_y = (obj_mbr.bottom_left.y < low_y) ? obj_mbr.bottom_left.y : low_y;
-            high_x = (obj_mbr.top_right.x > high_x) ? obj_mbr.top_right.x : high_x;
-            high_y = (obj_mbr.top_right.y > high_y) ? obj_mbr.top_right.y : high_y;
-        }
 
-    } else{
-        //NON LEAF NODE: 
-        for (int i = 0; i < next_node->u.non_leaf_node.num_entries; i++) {
-            Rectangle child_mbr = next_node->u.non_leaf_node.entries[i].mbr;
-            low_x = (child_mbr.bottom_left.x < low_x) ? child_mbr.bottom_left.x : low_x;
-            low_y = (child_mbr.bottom_left.y < low_y) ? child_mbr.bottom_left.y : low_y;
-            high_x = (child_mbr.top_right.x > high_x) ? child_mbr.top_right.x : high_x;
-            high_y = (child_mbr.top_right.y > high_y) ? child_mbr.top_right.y : high_y;
-        }
-    }
-    mbr.bottom_left.x = low_x;
-    mbr.bottom_left.y = low_y;
-    mbr.top_right.x = high_x;
-    mbr.top_right.y = high_y;
-    mbr.h = HilbertValue(mbr.bottom_left, mbr.top_right);
-    return mbr;
-}
-
-int calculateLHV(NonLeafEntry entry){
-    int max_h = -INFINITY;
-    NODE node = entry.child_ptr;
-    //CALCULATE MAXIMUM H OF NODE
-    if(node->is_leaf == 1){
-        for(int i = 0; i<node->u.leaf_node.num_entries; i++){
-            if(node->u.leaf_node.entries[i].mbr.h > max_h){
-                max_h = node->u.leaf_node.entries[i].mbr.h;
-            }
-        }
-        return max_h;
-    }
-    else{
-        //NON LEAF CHILD NODE
-        for(int i = 0; i<node->u.non_leaf_node.num_entries; i++){
-            if(node->u.non_leaf_node.entries[i].mbr.h > max_h){
-                max_h = node->u.non_leaf_node.entries[i].mbr.h;
-            }
-        }
-        return max_h;
-    }
-}
+// int calculateLHV(NonLeafEntry entry){
+//     int max_h = -INFINITY;
+//     NODE node = entry.child_ptr;
+//     //CALCULATE MAXIMUM H OF NODE
+//     if(node->is_leaf == 1){
+//         for(int i = 0; i<node->u.leaf_node.num_entries; i++){
+//             if(node->u.leaf_node.entries[i].mbr.h > max_h){
+//                 max_h = node->u.leaf_node.entries[i].mbr.h;
+//             }
+//         }
+//         return max_h;
+//     }
+//     else{
+//         //NON LEAF CHILD NODE
+//         for(int i = 0; i<node->u.non_leaf_node.num_entries; i++){
+//             if(node->u.non_leaf_node.entries[i].mbr.h > max_h){
+//                 max_h = node->u.non_leaf_node.entries[i].mbr.h;
+//             }
+//         }
+//         return max_h;
+//     }
+// }
 int main() {
     FILE *fp;
     Point points[MAX_POINTS];
@@ -810,7 +810,7 @@ int main() {
     }
 
     // Read the data points from the file
-    while (fscanf(fp, "%d %d\n", &points[num_points].x, &points[num_points].y) == 2) {
+    while (fscanf(fp, "%d %d\n", &points[num_points].x, &points[num_points].y)==2) {
         num_points++;
         printf("POINT  = %d %d\n", points[num_points-1].x, points[num_points-1].y);
     }
@@ -826,7 +826,7 @@ int main() {
     for(int i = 0; i<num_points; i++){
         rectangles[i].bottom_left = points[i];
         rectangles[i].top_right = points[i];
-        rectangles[i].h = HilbertValue(points[i],points[i]);        
+        // rectangles[i].h = HilbertValue(points[i],points[i]);        
     }
     
     HilbertRTree* Rtree = new_hilbertRTree();
