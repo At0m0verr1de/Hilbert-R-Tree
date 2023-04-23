@@ -9,6 +9,7 @@
 #define MAX_CHILDREN M // M = 4; MAXIMUM NUMBER OF CHILDREN
 #define MIN_CHILDREN m
 #define MAX_POINTS 21
+#define MAX_COORDINATE 2147483647 // 2^31 - 1
 
 typedef unsigned long long ull;
 int CURRENT_ID = 1;
@@ -196,6 +197,7 @@ ull HilbertValue(Point bottom_left, Point top_right)
 
     return hilbert_value;
 }
+
 bool rectangles_equal(Rectangle *rect1, Rectangle *rect2)
 {
     if (rect1->bottom_left.x != rect2->bottom_left.x ||
@@ -279,6 +281,7 @@ bool isInArray(NODE *arr, int size, NODE node)
     }
     return false;
 }
+
 void rotate(uint32_t n, double *x, double *y, uint64_t rx, uint64_t ry)
 {
     if (ry == 0)
@@ -308,7 +311,6 @@ uint64_t xy2d(uint32_t n, double x, double y)
 }
 
 // Assumes the maximum x and y coordinates are 2^31-1
-#define MAX_COORDINATE 2147483647
 uint32_t get_hilbert_order(uint32_t num_dims, uint32_t bits_per_dim)
 {
     uint32_t max_dim_index = (1 << bits_per_dim) - 1;
@@ -320,6 +322,8 @@ uint32_t get_hilbert_order(uint32_t num_dims, uint32_t bits_per_dim)
     }
     return order;
 }
+
+// Calculates the Hilbert value of a point with the given coordinates
 uint64_t calculate_hilbert_value(double x, double y)
 {
     // Scale the x and y coordinates to the range [0, 1]
@@ -338,7 +342,7 @@ uint64_t calculate_hilbert_value(double x, double y)
 /*ADJUST TREE ASCEND FROM LEAF TOWARDS ROOT AND ADJUST MBR AND LHV VALUES*/
 void adjustLHV(NODE parentNode)
 {
-    if (parentNode == NULL)
+    if (!parentNode)
     {
         return;
     }
@@ -350,7 +354,7 @@ void adjustLHV(NODE parentNode)
 }
 void adjustMBR(NODE parentNode)
 {
-    if (parentNode == NULL)
+    if (!parentNode)
     {
         return;
     }
@@ -360,27 +364,27 @@ void adjustMBR(NODE parentNode)
     }
     adjustMBR(parentNode->parent_ptr);
 }
-void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
+void AdjustTree(NODE N, NODE newNode, NODE *S, int s_size)
 {
     // STOP IF ROOT LEVEL REACHED
-    NODE Np = N->parent_ptr;
+    NODE parentNode = N->parent_ptr;
     NODE new_node = NULL;
     // PARENT = NULL; ROOT LEVEL
-    if (!Np)
+    if (!parentNode)
     {
         return;
     }
     // INSERT SPLIT NODE INTO PARENT
-    if (NN)
+    if (newNode)
     {
         // INSERT IN CORRECCT ORDER IF ROOM IN PARENT NODE
-        if (Np->u.non_leaf_node.num_entries < MAX_CHILDREN)
+        if (parentNode->u.non_leaf_node.num_entries < MAX_CHILDREN)
         {
-            InsertNode(Np, NN);
+            InsertNode(parentNode, newNode);
         }
         else
         {
-            new_node = HandleOverFlowNode(Np, NN);
+            new_node = HandleOverFlowNode(parentNode, newNode);
         }
         // Insert(Np, NN);
     }
@@ -406,7 +410,7 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
     }
 
     // NEXT LEVEL
-    AdjustTree(Np, new_node, P, numParents);
+    AdjustTree(parentNode, new_node, P, numParents);
 }
 
 NODE ChooseLeaf(NODE n, Rectangle r, int h)
