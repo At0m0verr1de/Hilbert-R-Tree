@@ -617,7 +617,7 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
     {
         // Create a newnode and distribute the entries
         struct Node *newNode;
-        newNode = make_leaf_node();
+        newNode = new_node(1);
         num_entries_per_node = num_entries / (numSiblings + 1);
         remainder_entries = num_entries % (numSiblings + 1);
         currIndex = 0;
@@ -650,7 +650,7 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
         currIndex = 0;
         for (int i = 0; i < numSiblings; i++)
         {
-            S[i] = make_leaf_node();
+            S[i] = new_node(1);
             int startIndex = 0;
             S[i]->leaf_node.num_entries = 0;
             for (int k = currIndex; k < currIndex + num_entries_per_node; k++)
