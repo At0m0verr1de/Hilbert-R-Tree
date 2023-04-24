@@ -413,23 +413,21 @@ void AdjustTree(NODE N, NODE newNode, NODE *S, int s_size)
     AdjustTree(parentNode, new_node, P, numParents);
 }
 
-NODE ChooseLeaf(NODE n, Rectangle r, int h)
+// RETURNS THE LEAF NODE IN WHICH TO PLACE A NEW RECTANGE
+NODE ChooseLeaf(NODE n, Rectangle r, int hv)
 {
-    /* RETURNS THE LEAF NODE IN WHICH TO PLACE A NEW RECTANGE*/
-
-    /* IF N IS A LEAF, RETURN N*/
-    if (n->is_leaf == 1)
+    // IF N IS A LEAF, RETURN N
+    if (n->is_leaf)
     {
         return n;
     }
 
-    /* IF N IS A NON-LEAF NODE, CHOOSE ENTRY (R, PTR, LHV) WITH MINIMUM LHV
-    GREATER THAN H*/
+    // IF N IS A NON-LEAF NODE, CHOOSE ENTRY (R, PTR, LHV) WITH MINIMUM LHV GREATER THAN HV
     float min_LHV = INFINITY;
     NODE next_node = NULL;
     for (int i = 0; i < n->u.non_leaf_node.num_entries; i++)
     {
-        if (n->u.non_leaf_node.entries[i].lhv > h && n->u.non_leaf_node.entries[i].lhv < min_LHV)
+        if (n->u.non_leaf_node.entries[i].lhv > hv && n->u.non_leaf_node.entries[i].lhv < min_LHV)
         {
             min_LHV = n->u.non_leaf_node.entries[i].lhv;
             next_node = n->u.non_leaf_node.entries[i].child_ptr;
@@ -451,8 +449,9 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h)
     }
 
     /* DESCEND UNTIL A LEAF NODE IS REACHED*/
-    return ChooseLeaf(next_node, r, h);
+    return ChooseLeaf(next_node, r, hv);
 }
+
 NODE HandleOverFlow(NODE n, Rectangle rectangle)
 {
     // E = SET OF ALL ENTRIES FROM N AND S-1 COOPERATING SIBLINGS
@@ -549,6 +548,8 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
     }
     return NULL;
 }
+
+// Inserting a new rectangle into the tree
 void Insert(NODE root, Rectangle rectangle)
 {
     NODE leafNode = ChooseLeaf(root, rectangle, rectangle.h);
@@ -649,7 +650,7 @@ void Insert(NODE root, Rectangle rectangle)
 // SEARCH ALGORITHM
 //-> NONLEAF - THOSE WITH MBR INTERSECTING THE QUERY WINDOW W
 //-> LEAF - THOSE WITH MBR INTERSECTING THE QUERY WINDOW W
-/*ALL RECTANGLES THAT OVERLAP A SEARCH RECTANGLE*/
+// ALL RECTANGLES THAT OVERLAP A SEARCH RECTANGLE
 bool intersects(Rectangle r1, Rectangle r2)
 {
     return !(
@@ -769,6 +770,7 @@ NODE findLeaf(NODE root, Rectangle rectangle)
     return findLeaf(root->u.non_leaf_node.entries[i].child_ptr, rectangle);
 }
 
+// FIND THE INDEX OF THE ENTRY IN THE NODE
 int find_entry_index(NODE n, Rectangle rectangle)
 {
     int index = -1;
@@ -786,7 +788,7 @@ int find_entry_index(NODE n, Rectangle rectangle)
     return index;
 }
 
-/*DELETE(RECTANGLE R)*/
+// DELETE(RECTANGLE R)
 void delete(NODE root, Rectangle rectangle)
 {
     // D1. FIND THE HOST LEAF
@@ -1002,34 +1004,3 @@ int main()
 
     return 0;
 }
-// void getCooperatingSiblings(NODE node, NODE* siblings, int s) {
-//     NODE parent = node->parent_ptr;
-//     int i;
-//     int index = -1;
-//     // Find the index of the given node in its parent's child pointers array
-//     for (i = 0; i < parent->u.non_leaf_node.num_entries; i++) {
-//         if (parent->u.non_leaf_node.entries[i].child_ptr == node) {
-//             index = i;
-//             break;
-//         }
-//     }
-//     if (index == -1) {
-//         // Node is not a child of its parent
-//         return;
-//     }
-
-//     int numSiblings = 0;
-//     // Check the s-1 siblings to the left of the given node
-//     for (i = index-1; i >= 0 && numSiblings < s-1; i--) {
-//         if (parent->u.non_leaf_node.entries[i].child_ptr->u.leaf_node.num_entries < M) {
-//             siblings[numSiblings++] = parent->u.non_leaf_node.entries[i].child_ptr;
-//         }
-//     }
-
-//     // Check the s-1 siblings to the right of the given node
-//     for (i = index+1; i < parent->u.non_leaf_node.num_entries && numSiblings < s-1; i++) {
-//         if (parent->u.non_leaf_node.entries[i].child_ptr->u.leaf_node.num_entries < M) {
-//             siblings[numSiblings++] = parent->u.non_leaf_node.entries[i].child_ptr;
-//         }
-//     }
-// }
