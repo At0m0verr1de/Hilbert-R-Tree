@@ -8,7 +8,7 @@
 #define m 2
 #define MAX_CHILDREN M // M = 4; MAXIMUM NUMBER OF CHILDREN
 #define MIN_CHILDREN m
-#define MAX_POINTS 5
+#define MAX_POINTS 6
 int CURRENT_ID = 0;
 int num_results = 0;
 bool root_split = false;
@@ -424,7 +424,10 @@ Rectangle calculateEntryMBR(NonLeafEntry entry)
 
 /*ADJUST TREE ASCEND FROM LEAF TOWARDS ROOT AND ADJUST MBR AND LHV VALUES*/
 void adjustLHV(NODE parentNode)
-{
+{   
+    if(parentNode == NULL){
+        return;
+    }
     if (parentNode != NULL)
     {
         for (int i = 0; i < parentNode->non_leaf_node.num_entries; i++)
@@ -450,26 +453,26 @@ void InsertNode(NODE parent, NODE newNode)
 {
     newNode->parent_ptr = parent;
 
-    //NON LEAF ENTRY CREATED
+    // NON LEAF ENTRY CREATED
     NonLeafEntry entry;
     entry.child_ptr = newNode;
     entry.largest_hilbert_value = calculateLHV(entry);
     entry.mbr = calculateEntryMBR(entry);
 
-    //INSERT THE NEW NON LEAF ENTRY ACCORDING TO LHV
+    // INSERT THE NEW NON LEAF ENTRY ACCORDING TO LHV
     int i = 0;
     while (i < parent->non_leaf_node.num_entries && parent->non_leaf_node.entries[i].largest_hilbert_value < entry.largest_hilbert_value)
     {
         i++;
     }
 
-    //SHIFT VALUES IN PARENT NODE
+    // SHIFT VALUES IN PARENT NODE
     for (int j = parent->non_leaf_node.num_entries; j > i; j--)
     {
         parent->leaf_node.entries[j] = parent->leaf_node.entries[j - 1];
     }
 
-    //INSERT ACCORDING TO HILBERT VALUE
+    // INSERT ACCORDING TO HILBERT VALUE
     parent->non_leaf_node.entries[i] = entry;
     parent->non_leaf_node.num_entries++;
 }
@@ -483,11 +486,11 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h)
         return n;
     }
     /* IF N IS A NON-LEAF NODE, CHOOSE ENTRY (R, PTR, LHV) WITH MINIMUM LHV GREATER THAN H*/
-    float min_LHV = INFINITY;
+    float min_LHV = n->non_leaf_node.entries[0].largest_hilbert_value;
     NODE next_node = NULL;
     for (int i = 0; i < n->non_leaf_node.num_entries; i++)
     {
-        if (n->non_leaf_node.entries[i].largest_hilbert_value > h && n->non_leaf_node.entries[i].largest_hilbert_value < min_LHV)
+        if (n->non_leaf_node.entries[i].largest_hilbert_value > h && n->non_leaf_node.entries[i].largest_hilbert_value <= min_LHV)
         {
             min_LHV = n->non_leaf_node.entries[i].largest_hilbert_value;
             next_node = n->non_leaf_node.entries[i].child_ptr;
@@ -497,6 +500,7 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h)
     if (next_node == NULL)
     {
         // CHOOSE THE CHILD NODE WITH LARGEST LHV
+        min_LHV = n->non_leaf_node.entries[0].largest_hilbert_value;
         for (int i = 0; i < n->non_leaf_node.num_entries; i++)
         {
 
@@ -557,39 +561,39 @@ NODE *cooperatingSiblings(NODE n)
 
 int numberOfSiblings(NODE n)
 {
+    // taking s=2
     NODE *S = (NODE *)malloc(sizeof(NODE) * MAX_POINTS);
     for (int i = 0; i < MAX_POINTS; i++)
     {
         S[i] = NULL;
     }
     S[0] = n;
-    int numSiblings = 0;
+    int numSiblingsCP = 0;
     NODE parentNode = n->parent_ptr;
+    if (parentNode == NULL)
+    {
+        return (int)(numSiblingsCP+1);
+    }
     // GO FROM CURRENT NODE TO ROOT FINDING SIBLINGS
     // WITH LESS THAN MAXIMUM POINTERS
-    while (parentNode)
+    int index = -1;
+    for (int i = 0; i < parentNode->non_leaf_node.num_entries; i++)
     {
-        int index = -1;
-        for (int i = 0; i < parentNode->non_leaf_node.num_entries; i++)
+        if (parentNode->non_leaf_node.entries[i].child_ptr == n)
         {
-            if (parentNode->non_leaf_node.entries[i].child_ptr == n)
-            {
-                index = i;
-                break;
-            }
+            index = i;
+            break;
         }
-        if (index > 0 && parentNode->non_leaf_node.entries[index - 1].child_ptr->leaf_node.num_entries < M)
-        {
-            S[++numSiblings] = parentNode->non_leaf_node.entries[index - 1].child_ptr;
-        }
-        else if (index == 0 && parentNode->non_leaf_node.entries[index + 1].child_ptr->leaf_node.num_entries < M)
-        {
-            S[++numSiblings] = parentNode->non_leaf_node.entries[index + 1].child_ptr;
-        }
-        S[++numSiblings] = parentNode;
-        parentNode = parentNode->parent_ptr;
     }
-    return numSiblings;
+    if (index > 0)
+    {
+        S[++numSiblingsCP] = parentNode->non_leaf_node.entries[index - 1].child_ptr;
+    }
+    if (index < parentNode->non_leaf_node.num_entries - 1)
+    {
+        S[++numSiblingsCP] = parentNode->non_leaf_node.entries[index + 1].child_ptr;
+    }
+    return numSiblingsCP;
 }
 void copy_rectangle(Rectangle r1, Rectangle r2)
 {
@@ -603,7 +607,7 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
 {
     // E = SET OF ALL ENTRIES FROM N AND S-1 COOPERATING SIBLINGS
     NODE *S = cooperatingSiblings(n);          // CONTAINS COOPERATING SIBLINGS AND NODE
-    int numSiblings = numberOfSiblings(n) + 1; // SIZE OF SET S
+    int numSiblings = numberOfSiblings(n); // SIZE OF SET S
     int num_entries = 0;                       // SIZE OF SET E
     Rectangle E[MAX_POINTS];
 
@@ -620,7 +624,7 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
             }
         }
         // SIBLING NODE IS NON-LEAF
-        else
+        else if (S[i]->is_leaf == 0)
         {
             // STORES THE MBR OF ENTRIES INTO THE E ARRAY
             for (int j = 0; j < M; j++)
@@ -644,7 +648,7 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
                 allFull = false;
             }
         }
-        else
+        else if (S[i]->is_leaf == 0)
         {
             if (S[i]->non_leaf_node.num_entries < M)
             {
@@ -663,7 +667,7 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
         int n = sizeof(E) / sizeof(E[0]);
         qsort(E, n, sizeof(struct Rectangle), compare);
 
-        //ENTRIES PER NODE AND REMAINDER ENTRIES
+        // ENTRIES PER NODE AND REMAINDER ENTRIES
         int num_entries_per_node = num_entries / numSiblings;
         int remainder_entries = num_entries % numSiblings;
 
@@ -701,37 +705,6 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
         }
 
         return NULL;
-        // FOR EACH SIBLING NODE
-        // int currIndex = 0;
-        // int k = 0;
-        // for (int i = 0; i < numSiblings; i++)
-        // {
-        //     int startIndex = 0;
-        //     S[i]->leaf_node.num_entries = 0;
-        //     for (k = currIndex; k < currIndex + num_entries_per_node; k++)
-        //     {
-        //         // INSERT THE ENTRY
-        //         S[i]->leaf_node.entries[startIndex].mbr = E[k];
-        //         S[i]->leaf_node.entries[startIndex].obj_id = ++CURRENT_ID;
-        //         startIndex++;
-        //         S[i]->leaf_node.num_entries++;
-        //     }
-        // }
-        // // ADDING REMAINDER ENTRIES
-        // int j = 0;
-        // for (int i = 0; i < remainder_entries; i++)
-        // {
-        //     if (S[j]->leaf_node.num_entries < MAX_CHILDREN)
-        //     {
-        //         S[j]->leaf_node.entries[S[j]->leaf_node.num_entries].mbr = E[k++];
-        //         S[j]->leaf_node.entries[S[j]->leaf_node.num_entries].obj_id = ++CURRENT_ID;
-        //         S[j]->leaf_node.num_entries++;
-        //     }
-        //     else
-        //     {
-        //         j++;
-        //     }
-        // }
         // DISTRIBUTE E EVENLY AMONG THE S NODES ACCORDING TO THE HILBERT VALUE
     }
     // IF ALL COOPERATING SIBLINGS ARE FULL
@@ -741,13 +714,13 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
         // CREATE A NEW NODE NN
         NODE NN = (NODE)malloc(sizeof(struct Node));
         NN->parent_ptr = NULL;
-        
-        //IF ROOT WAS SPLIT TO CREATE NEW NODE
+
+        // IF ROOT WAS SPLIT TO CREATE NEW NODE
         if (n->parent_ptr == NULL)
         {
             root_split = true;
         }
-        //ADD NN TO SIBLINGS
+        // ADD NN TO SIBLINGS
         S[numSiblings] = NN; // ADD THE NEW NODE TO THE SET OF SIBLINGS
         numSiblings++;
 
@@ -806,21 +779,20 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
         return;
     }
     // INSERT SPLIT NODE INTO PARENT
-    if (NN)
+    if (NN != NULL)
     {
         // INSERT IN CORRECT ORDER IF ROOM IN PARENT NODE
         if (Np->non_leaf_node.num_entries < MAX_CHILDREN)
         {
             InsertNode(Np, NN);
         }
-        else
+        else if (Np->non_leaf_node.num_entries >= MAX_CHILDREN)
         {
             // PARENT NODE MUST BE SPLIT
 
             //->>TO BE IMPLEMENTED: HANDLEOVERFLOWNODE: WHEN PARENT NODE MUST BE SPLIT
             // new_node = HandleOverFlowNode(Np, NN);
-            
-            
+
             // IF ROOT NODE WAS SPLIT BH HANDLEOVERFLOW
             if (Np->parent_ptr == NULL && new_node != NULL)
             {
@@ -830,19 +802,21 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
             }
         }
     }
+
     // ADJUST MBR AND LHV IN PARENT LEVEL
     // P = SET OF PARENT NODES FOR NODES IN S
     NODE *P = (NODE *)malloc(sizeof(struct Node) * MAX_POINTS);
     int numParents = 0;
-    for (int i = 0; i < s_size; i++)
-    {
-        NODE parent = S[i]->parent_ptr;
-        if (parent && !isInArray(P, numParents, parent))
-        {
+    P[numParents++] = S[0]->parent_ptr;
+    // for (int i = 0; i < s_size; i++)
+    // {
+    //     NODE parent = S[i]->parent_ptr;
+    //     if (parent && !isInArray(P, numParents, parent))
+    //     {
 
-            P[numParents++] = parent;
-        }
-    }
+    //         P[numParents++] = parent;
+    //     }
+    // }
     // ADJUST MBR AND LHV VALUES
     for (int i = 0; i < numParents; i++)
     {
@@ -860,9 +834,10 @@ NODE Insert(NODE root, Rectangle rectangle)
     NODE leafNode = ChooseLeaf(root, rectangle, rectangle.h);
     NODE newLeafNode = NULL;
 
-    if (leafNode->leaf_node.num_entries < M)
+    if (leafNode->leaf_node.num_entries < MAX_CHILDREN)
     {
         // LEAF NODE HAS SPACE
+        printf("RECTANGLE: %d %d LEAF HAS SPACE\n", rectangle.bottom_left.x, rectangle.bottom_left.y);
         int i = 0;
         while (i < leafNode->leaf_node.num_entries && leafNode->leaf_node.entries[i].mbr.h < rectangle.h)
         {
@@ -881,10 +856,9 @@ NODE Insert(NODE root, Rectangle rectangle)
         leafNode->leaf_node.num_entries++;
 
         root_split = false;
-        int numSiblings = numberOfSiblings(leafNode) + 1;
+        int numSiblings = numberOfSiblings(leafNode);
         NODE *S = cooperatingSiblings(leafNode);
         AdjustTree(leafNode, newLeafNode, S, numSiblings);
-
         return root;
     }
     else
