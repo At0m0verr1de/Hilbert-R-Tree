@@ -101,6 +101,7 @@ int area(Rectangle r);
 int calculateLHV(NonLeafEntry entry);
 int compare(const void *a, const void *b);
 int find_entry_index(NODE n, Rectangle rectangle);
+int numberOfSiblings(NODE* S);
 Rectangle calculateMBR(Rectangle r1, Rectangle r2);
 Rectangle calculateEntryMBR(NonLeafEntry entry);
 NODE findLeaf(NODE root, Rectangle rectangle);
@@ -257,11 +258,9 @@ NODE Insert(NODE root, Rectangle rectangle){
         leafNode->leaf_node.num_entries++;
 
         root_split = false;
-        int* numSiblings = malloc(sizeof(int));
-        NODE *S = cooperatingSiblings(leafNode, numSiblings);
-        AdjustTree(leafNode, newLeafNode, S, ++numSiblings);
-
-        free(numSiblings);
+        NODE *S = cooperatingSiblings(leafNode);
+        int numSiblings = numberOfSiblings(S) + 1;
+        AdjustTree(leafNode, newLeafNode, S, numSiblings);
 
         return root;
     }
@@ -272,9 +271,9 @@ NODE Insert(NODE root, Rectangle rectangle){
         newLeafNode->is_leaf = 1;
         if (leafNode->parent_ptr == NULL)
         {
-            int* numSiblings = malloc(sizeof(int));
-            NODE *S = cooperatingSiblings(leafNode, numSiblings);
-            AdjustTree(leafNode, newLeafNode, S, numSiblings + 1);
+            NODE *S = cooperatingSiblings(leafNode);
+            int numSiblings = numberOfSiblings(S) + 1;
+            AdjustTree(leafNode, newLeafNode, S, numSiblings);
 
             NODE newRoot = (NODE)malloc(sizeof(struct Node));
             newRoot->is_leaf = 0;
@@ -300,9 +299,9 @@ NODE Insert(NODE root, Rectangle rectangle){
     // FORM A SET S CONTAINING L: COOPERATING SIBLINGS AND NEW LEAF (IF ANY)
 
     root_split = false;
-    int* numSiblings = malloc(sizeof(int));
-    NODE *S = cooperatingSiblings(leafNode, numSiblings);
-    AdjustTree(leafNode, newLeafNode, S, numSiblings + 1);
+    NODE *S = cooperatingSiblings(leafNode);
+    int numSiblings = numberOfSiblings(S) + 1;
+    AdjustTree(leafNode, newLeafNode, S, numSiblings);
 
     // IF NODE SPLIT CAUSED ROOT TO SPLIT, CREATEA NEWROOT WITH CHILDREN
     // AS RESULTING NODES
@@ -336,8 +335,7 @@ void delete(NODE root, Rectangle rectangle){
     NODE n = findLeaf(root, rectangle);
     NODE parentNode = n->parent_ptr;
     NODE *S = (NODE *)malloc(sizeof(NODE) * MAX_POINTS);
-    int* numSiblings = malloc(sizeof(int));
-
+    int numSiblings = 0;
     // D2. DELETE R: REMOVE R FROM NODE N
     // FIND INDEX OF ENTRY
     int index = find_entry_index(n, rectangle);
@@ -359,9 +357,8 @@ void delete(NODE root, Rectangle rectangle){
     if (n->leaf_node.num_entries < MIN_CHILDREN)
     {
         // BORROW ENTRIES FROM COOPERATING SIBLINGS
-        S = cooperatingSiblings(n, numSiblings);
-        numSiblings++;
-
+        S = cooperatingSiblings(n);
+        numSiblings = numberOfSiblings(S) + 1; // SIZE OF S
         int num_borrowed = 0;
         bool allUnderflow = false;
         int i = 1;
@@ -526,29 +523,31 @@ void AdjustTree(NODE N, NODE newNode, NODE *S, int s_size){
 // Handle overflow of a node on insertion of a new rectangle in the node
 NODE HandleOverFlow(NODE n, Rectangle rectangle){
     // E = SET OF ALL ENTRIES FROM N AND S-1 COOPERATING SIBLINGS
+    NODE *S = (NODE *)malloc(sizeof(struct Node) * MAX_POINTS); // CONTAINS COOPERATING SIBLINGS AND NODE
 
-    int* numSiblings = malloc(sizeof(int));    // SIZE OF SET S
-    NODE *S = (NODE *)malloc(sizeof(NODE) * MAX_POINTS);
-
-    S = cooperatingSiblings(n, numSiblings);   // CONTAINS COOPERATING SIBLINGS AND NODE
-    numSiblings++;
-
+    S = cooperatingSiblings(n);          // CONTAINS COOPERATING SIBLINGS AND NODE
+    int numSiblings = numberOfSiblings(S) + 1; // SIZE OF SET S
     int num_entries = 0;                       // SIZE OF SET E
     Rectangle E[MAX_POINTS];
 
     // H1: SET OF ALL ENTRIES FROM SIBLINGS
-    for (int i = 0; i < numSiblings; i++){
+    for (int i = 0; i < numSiblings; i++)
+    {
         // SIBLING NODE IS A LEAF
-        if (S[i]->is_leaf == 1){
+        if (S[i]->is_leaf == 1)
+        {
             // STORES THE MBR OF ENTRIES INTO THE E ARRAY
-            for (int j = 0; j < M; j++){
+            for (int j = 0; j < M; j++)
+            {
                 E[num_entries++] = S[i]->leaf_node.entries[j].mbr;
             }
         }
         // SIBLING NODE IS NON-LEAF
-        else{
+        else
+        {
             // STORES THE MBR OF ENTRIES INTO THE E ARRAY
-            for (int j = 0; j < M; j++){
+            for (int j = 0; j < M; j++)
+            {
                 E[num_entries++] = S[i]->non_leaf_node.entries[j].mbr;
             }
         }
@@ -1062,6 +1061,18 @@ NODE *cooperatingSiblings(NODE n, int *numSiblings) {
     }
 
     return S;
+}
+
+int numberOfSiblings(NODE* S){
+    int numSiblings = 0;
+    for (int i = 0; i < MAX_POINTS; i++)
+    {
+        if (S[i] != NULL)
+        {
+            numSiblings++;
+        }
+    }
+    return numSiblings;
 }
 
 
