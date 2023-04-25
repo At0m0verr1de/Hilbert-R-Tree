@@ -90,7 +90,6 @@ uint32_t hilbertXYToIndex(uint32_t n, uint32_t x, uint32_t y);
 uint32_t hilbertValue(Rectangle rect);
 
 NODE Insert(NODE root, Rectangle rectangle);
-void delete(NODE root, Rectangle rectangle);
 NODE ChooseLeaf(NODE n, Rectangle r, int h);
 void AdjustTree(NODE N, NODE newNode, NODE *S, int s_size);
 NODE HandleOverFlow(NODE n, Rectangle rectangle);
@@ -347,110 +346,6 @@ NODE Insert(NODE root, Rectangle rectangle)
     return root;
 }
 
-/*DELETE(RECTANGLE R)*/
-void delete(NODE root, Rectangle rectangle)
-{
-    // D1. FIND THE HOST LEAF
-    // FIND THE HOST LEAF: N = LEAF CONTAINING ENTRY WITH RECTANGLE
-    NODE n = findLeaf(root, rectangle);
-    NODE parentNode = n->parent_ptr;
-    NODE *S = (NODE *)malloc(sizeof(NODE) * MAX_POINTS);
-    int numSiblings = 0;
-    // D2. DELETE R: REMOVE R FROM NODE N
-    // FIND INDEX OF ENTRY
-    int index = find_entry_index(n, rectangle);
-
-    if (index == -1)
-    {
-        printf("ENTRY NOT FOUND TO DELETE");
-        return;
-    }
-
-    // ENTRY FOUND; INDEX>=0 DELETE ENTRY AT INDEX I
-    for (int i = index; i < n->leaf_node.num_entries - 1; i++)
-    {
-        n->leaf_node.entries[i] = n->leaf_node.entries[i + 1];
-    }
-    n->leaf_node.num_entries--;
-
-    // D3. IF NODE UNDERFLOWS: LESS THAN m ENTRIES
-    if (n->leaf_node.num_entries < MIN_CHILDREN)
-    {
-        // BORROW ENTRIES FROM COOPERATING SIBLINGS
-        S = cooperatingSiblings(n);
-        numSiblings = numberOfSiblings(S) + 1; // SIZE OF S
-        int num_borrowed = 0;
-        bool allUnderflow = false;
-        int i = 1;
-
-        // ARE ALL COOPERATING SIBLINGS READY TO UNDERFLOW?
-        for (int i = 1; i < numSiblings; i++)
-        {
-            if (S[i]->leaf_node.num_entries > MIN_CHILDREN)
-            {
-                allUnderflow = true;
-            }
-        }
-        // IF NOT ALL READY TO UNDERFLOW: BORROW FROM S COOPERATING SIBLINGS
-        if (!allUnderflow)
-        {
-            // WHILE NODE IS IN UNDERFLOW AND ALL SIBLINGS NOT EXPLORED
-            while (n->leaf_node.num_entries < MIN_CHILDREN && i < numSiblings)
-            {
-                // IF SIBLING IS NOT NULL AND HAS MORE THAN MINIMUM CHILDREN
-                while (S[i] != NULL && S[i]->leaf_node.num_entries > MIN_CHILDREN && n->leaf_node.num_entries < MIN_CHILDREN)
-                {
-                    // LOGIC TO TRANSFER/BORROW AN ENTRY: BORROW 1ST ENTRY
-                    n->leaf_node.entries[n->leaf_node.num_entries].mbr = S[i]->leaf_node.entries[0].mbr;
-                    n->leaf_node.entries[n->leaf_node.num_entries].obj_id = S[i]->leaf_node.entries[0].obj_id;
-                    n->leaf_node.num_entries++;
-                    // SHIFT ALL ENTRIES ONE POSITION TO LEFT
-                    for (int j = 0; j < S[i]->leaf_node.num_entries - 1; j++)
-                    {
-                        S[i]->leaf_node.entries[j] = S[i]->leaf_node.entries[j + 1];
-                    }
-                    S[i]->leaf_node.num_entries--;
-                    num_borrowed++;
-                    break;
-                }
-                i++;
-            }
-        }
-        // IF ALL SIBLINGS ARE READY TO UNDERFLOW
-        if (allUnderflow)
-        {
-            // MERGE THE CURRENT NODE WITH A SIBLING NODE
-            for (int i = 0; i < n->leaf_node.num_entries; i++)
-            {
-                // INSERT THE ENTRIES TO A COOPERATING SIBLING
-                S[1]->leaf_node.entries[S[i]->leaf_node.num_entries] = n->leaf_node.entries[i];
-                S[1]->leaf_node.num_entries++;
-            }
-            parentNode = n->parent_ptr;
-            free(n);
-
-            // DELETE THE ENTRY CONTAINING CHILD_PTR TO DELETED NODE
-            for (int i = index; i < parentNode->non_leaf_node.num_entries - 1; i++)
-            {
-                parentNode->non_leaf_node.entries[i] = parentNode->non_leaf_node.entries[i + 1];
-            }
-            parentNode->non_leaf_node.num_entries--;
-            // UPDATE LHV AND MBR OF PARENT NODE AND ENTRY
-            adjustLHV(parentNode);
-            adjustMBR(parentNode);
-        }
-        // BORROW SOME ENTRIES FROM S COOPERATING SIBLINGS Having more than minimum
-        // IF ALL SIBLINGS READS TO UNDERFLOW; MERGE S+1 TO S NODES
-        // ADJUST THE RESULTING NODES
-    }
-    adjustLHV(parentNode);
-    adjustMBR(parentNode);
-    // ADJUST MBR AND LHV IN PARENT LEVELS
-    // FORM A SET S CONTAINING L AND COOPERATING SIBLINGS [IF UNDERFLOW HAD OCCURED]
-    AdjustTree(n, NULL, S, numSiblings);
-    free(S);
-}
-
 // Chooses a lead for inserting the rectangle r with hilbert value h
 NODE ChooseLeaf(NODE n, Rectangle r, int h)
 {
@@ -692,7 +587,7 @@ void preOrderTraverse(NODE n)
         for (int i = 0; i < n->non_leaf_node.num_entries; i++)
         {
             printMBR(n->non_leaf_node.entries[i].mbr);
-            traverse(n->non_leaf_node.entries[i].child_ptr);
+            preOrderTraverse(n->non_leaf_node.entries[i].child_ptr);
         }
     }
 }
@@ -1142,6 +1037,8 @@ int main()
     {
         Rtree->root = Insert(Rtree->root, rectangles[i]);
     }
-    // traverse_tree(Rtree);
+
+    preOrderTraverse(Rtree->root);
+
     return 0;
 }
