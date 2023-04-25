@@ -8,7 +8,7 @@
 #define m 2
 #define MAX_CHILDREN M // M = 4; MAXIMUM NUMBER OF CHILDREN
 #define MIN_CHILDREN m
-#define MAX_POINTS 17
+#define MAX_POINTS 15
 int CURRENT_ID = 0;
 int num_results = 0;
 bool root_split = false;
@@ -173,18 +173,19 @@ void preOrderTraverse(NODE n)
     }
     if (n->is_leaf == 1)
     {
-        printf("Leaf node\n");
+
         for (int i = 0; i < n->leaf_node.num_entries; i++)
         {
+            printf("Leaf Node Entry: %d\n", i);//
             printf("Object_ID = %d: ", n->leaf_node.entries[i].obj_id);
             printMBR(n->leaf_node.entries[i].mbr);
         }
     }
     else
     {
-        printf("Internal node\n");
         for (int i = 0; i < n->non_leaf_node.num_entries; i++)
         {
+            printf("Internal node Entry \n", i);
             printMBR(n->non_leaf_node.entries[i].mbr);
             preOrderTraverse(n->non_leaf_node.entries[i].child_ptr);
         }
@@ -410,7 +411,8 @@ void store_all_entries(NonLeafEntry *E, NODE *S, int *num_entries, int numSiblin
 
 NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
 {
-    printf("HANDLE OVERFLOW NODE CALLED");
+
+    printf("HANDLE OVERFLOW NODE CALLED\n");
     // TO INSERT NEW_NODE AS A CHILD POINTER IN A NON LEAF ENTRY
     NonLeafEntry entry = new_nonleafentry(new_node);
 
@@ -430,8 +432,9 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
     allFull = allNodesFull(S, numSiblings); // True if all nodes in S are full
 
     // IF ALL SIBLINGS ARE FULL
-    if (allFull)
+    if (!allFull)
     {
+        printf("PARENT NODE'S %d SIBLINGS ARE NOT ALL FULL\n", numSiblings);
         // ENTRIES PER NODE AND REMAINDER ENTRIES
         int num_entries_per_node = (*num_entries) / numSiblings;
         int remainder_entries = (*num_entries) % numSiblings;
@@ -475,7 +478,7 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
     }
     else
     {
-
+        printf("ALL PARENT NODE'S %d SIBLINGS ARE FULL\n", numSiblings);
         qsort(E, *num_entries, sizeof(struct NonLeafEntry *), compareNonLeafEntry);
 
         NODE NN = (NODE)calloc(1, sizeof(struct Node));
@@ -1033,6 +1036,7 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
     // STOP IF ROOT LEVEL REACHED
     NODE Np = N->parent_ptr;
     NODE new_node = NULL;
+    printf("ADJUST TREE CALLED\n");
 
     // PARENT = NULL; ROOT LEVEL
     if (!Np)
@@ -1045,17 +1049,22 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
         // INSERT IN CORRECT ORDER IF ROOM IN PARENT NODE
         if (Np->non_leaf_node.num_entries < MAX_CHILDREN)
         {
+            printf("PARENT NODE HAS SPACE\n");
             InsertNode(Np, NN);
         }
         else
         {
             // PARENT NODE MUST BE SPLIT
-
+            printf("PARENT NODE IS FULL\n");
             //->>TO BE IMPLEMENTED: HANDLEOVERFLOWNODE: WHEN PARENT NODE MUST BE SPLIT
             new_node = HandleOverFlowNode(Np, NN);
+            if(new_node != NULL){
+                printf("PARENT NODE WAS SPLIT\n");
+            }
             // IF ROOT NODE WAS SPLIT BH HANDLEOVERFLOW
             if (Np->parent_ptr == NULL && new_node != NULL)
             {
+                printf("ROOT SHOULD HAVE SPLIT!\n");
                 root_split = true;
                 root1 = Np;
                 root2 = new_node;
@@ -1137,6 +1146,7 @@ NODE Insert(NODE root, Rectangle rectangle)
 
         if (newLeafNode)
         {
+            printf("LEAF NODE SPLIT: %d\n", rectangle.h);
             newLeafNode->is_leaf = 1;
             S[numSiblings++] = newLeafNode;
         }
@@ -1146,7 +1156,7 @@ NODE Insert(NODE root, Rectangle rectangle)
 
         if (leafNode->parent_ptr == NULL && newLeafNode != NULL)
         {
-
+            printf("NEW ROOT FORMED");
             NODE newRoot = (NODE)malloc(sizeof(struct Node));
             newRoot->is_leaf = 0;
             newRoot->non_leaf_node.num_entries = 2;
@@ -1170,13 +1180,12 @@ NODE Insert(NODE root, Rectangle rectangle)
     // Propogate changes upward
     // FORM A SET S CONTAINING L: COOPERATING SIBLINGS AND NEW LEAF (IF ANY)
 
-    root_split = false;
-
     // IF NODE SPLIT CAUSED ROOT TO SPLIT, CREATEA NEWROOT WITH CHILDREN
     // AS RESULTING NODES
     //  Check if the root split
     if (root_split)
     {
+        printf("ROOT IS SPLIT: %d\n", rectangle.h);
         NODE newRoot = (NODE)malloc(sizeof(struct Node));
         newRoot->is_leaf = 0;
         newRoot->non_leaf_node.num_entries = 2;
@@ -1367,6 +1376,7 @@ int main()
         Rtree->root = Insert(Rtree->root, rectangles[i]);
         
     }
+    // preOrderTraverse(Rtree->root);
     return 0;
 
 }
