@@ -185,7 +185,7 @@ void preOrderTraverse(NODE n)
     {
         for (int i = 0; i < n->non_leaf_node.num_entries; i++)
         {
-            printf("Internal node Entry \n", i);
+            printf("Internal node Entry %d\n", i);
             printMBR(n->non_leaf_node.entries[i].mbr);
             preOrderTraverse(n->non_leaf_node.entries[i].child_ptr);
         }
@@ -430,7 +430,6 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
     store_all_entries(E, S, num_entries, numSiblings);
     //ADD NEW NON LEAF ENTRY TO E
     E[(*num_entries)++] = entry;
-
     //SORT THE SET BASED ON LHV OF NON LEAF ENTRIES
     qsort(E, *num_entries, sizeof(NonLeafEntry), compareNonLeafEntry);
 
@@ -445,6 +444,8 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
         // ENTRIES PER NODE AND REMAINDER ENTRIES
         int num_entries_per_node = (*num_entries) / numSiblings;
         int remainder_entries = (*num_entries) % numSiblings;
+
+        printf("PARENT NODE: NUMBER OF NON LEAF ENTRIES = %d NUMBER OF SIBLINGS = %d\n", *num_entries, numSiblings);
 
         //DISTRIBUTION LIST[I] = NUMBER OF ENTRIES FOR THE ITH SIBLINGS
         int *distributionList = (int *)calloc(numSiblings, sizeof(int));
@@ -468,8 +469,12 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
             //ADD DISTRIBUTIONLIST[I] NUMBER OF ENTRIES TO ITH SIBLINGS
             for (int l = 0; l < distributionList[j]; l++)
             {
-
+            
+                //ADD NON LEAF ENTRY TO THE SIBLING
                 S[j]->non_leaf_node.entries[l] = E[done];
+                //SET THE PARENT POINTER FOR NODES
+                E[done].child_ptr->parent_ptr = S[j];
+                //INCREMENT THE NUMBER OF ENTRIES
                 S[j]->non_leaf_node.num_entries++;
                 done++;
                 
@@ -514,6 +519,8 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
         // ADD NN TO SIBLINGS
         S[numSiblings++] = NN; // ADD THE NEW NODE TO THE SET OF SIBLINGS
 
+        printf("PARENT NODE: NUMBER OF NON LEAF ENTRIES = %d NUMBER OF SIBLINGS = %d\n", *num_entries, numSiblings);
+
         // qsort(E, n, sizeof(struct Rectangle), compare);
         int num_entries_per_node = (*num_entries) / numSiblings;
         int remainder_entries = (*num_entries) % numSiblings;
@@ -537,6 +544,7 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
             {
                  
                 S[j]->non_leaf_node.entries[l] = E[done];
+                E[done].child_ptr->parent_ptr = S[j];
                 S[j]->non_leaf_node.num_entries++;
                 done++;
             }
@@ -682,13 +690,13 @@ int calculateLHV(NonLeafEntry entry)
     }
     else if (node->is_leaf == 0)
     {
-        max_h = node->non_leaf_node.entries[0].mbr.h;
+        max_h = node->non_leaf_node.entries[0].largest_hilbert_value;
         // NON LEAF CHILD NODE
         for (int i = 0; i < node->non_leaf_node.num_entries; i++)
         {
-            if (node->non_leaf_node.entries[i].mbr.h > max_h)
+            if (node->non_leaf_node.entries[i].largest_hilbert_value > max_h)
             {
-                max_h = node->non_leaf_node.entries[i].mbr.h;
+                max_h = node->non_leaf_node.entries[i].largest_hilbert_value;
             }
         }
         return max_h;
@@ -771,6 +779,7 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h)
 {
     /* RETURNS THE LEAF NODE IN WHICH TO PLACE A NEW RECTANGE*/
     /* IF N IS A LEAF, RETURN N*/
+    printf("CHOOSE LEAF CALLED\n");
     if (n->is_leaf == 1)
     {
         return n;
@@ -951,9 +960,9 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
 
         // SORT THE ENTRIES IN E BASED ON THEIR HILBERT VALUE
         qsort(E, num_entries, sizeof(Rectangle), compare);
-        for(int i = 0; i<num_entries; i++){
-            printf("STORED: %d\n", E[i].h);
-        }
+        // for(int i = 0; i<num_entries; i++){
+        //     printf("STORED: %d\n", E[i].h);
+        // }
         printf("NOT ALL FULL: %d\n", rectangle.h);
         printf("ENTRIES: %d SIBLINGS: %d\n", num_entries, numSiblings);
         // ENTRIES PER NODE AND REMAINDER ENTRIES
@@ -1001,6 +1010,7 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
     {
         // DISTRIBUTE E EVENLY AMONG THE S+1 NODES ACCORDING TO THE HILBERT VALUE
         // CREATE A NEW NODE NN
+        printf("ALL SIBLINGS OF LEAF NODE ARE FULL$d\n");
         NODE NN = (NODE)malloc(sizeof(struct Node));
         NN->parent_ptr = NULL;
         NN->leaf_node.num_entries = 0;
@@ -1069,13 +1079,18 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
     printf("ADJUST TREE CALLED\n");
 
     // PARENT = NULL; ROOT LEVEL
-    if (!Np)
+    if (Np == NULL)
     {
+        printf("ROOT LEVEL REACHED IN ADJUST TREE\n");
         return;
     }
+    if(NN == NULL){
+        printf("NO NEW NODE PASSED TO ADJUST TREE\n");
+    }
     // INSERT SPLIT NODE INTO PARENT
-    if (NN)
+    if (NN != NULL)
     {
+        printf("HANDLING NEW NODE IN ADJUST TREE\n");
         // INSERT IN CORRECT ORDER IF ROOM IN PARENT NODE
         if (Np->non_leaf_node.num_entries < MAX_CHILDREN)
         {
@@ -1151,22 +1166,28 @@ NODE Insert(NODE root, Rectangle rectangle)
             leafNode->leaf_node.entries[j] = leafNode->leaf_node.entries[j - 1];
         }
         // INSERT ACCORDING TO HILBERT ORDER AND RETURN
+
+        //CREATE THE LEAF ENTRY
         LeafEntry entry;
         entry.mbr = rectangle;
         entry.obj_id = ++CURRENT_ID;
+
+        //INSERT THE LEAF ENTRY INTO NODE
         leafNode->leaf_node.entries[i] = entry;
         leafNode->leaf_node.num_entries++;
 
+        //FIND SET OF COOPERATING SIBLINGS, SET ROOT_SPLIT TO FALSE AND CALLA ADJUST TREE
+
+        //PROBLEM: PARENT_PTR OF LEAF NODE IS NULL SOMEHOW
         root_split = false;
         NODE* S = cooperatingSiblings(leafNode);
         int numSiblings = numberOfSiblings(S);
         AdjustTree(leafNode, newLeafNode, S, numSiblings);
-    
         return root;
     }
 
 
-    else
+    else if (leafNode->leaf_node.num_entries >= M)
     {
         // LEAF NODE IS FULL
         printf("LEAF NODE IS FULL: %d\n", rectangle.h);
@@ -1182,6 +1203,7 @@ NODE Insert(NODE root, Rectangle rectangle)
         }
 
         root_split = false;
+        printf("NUMBER OF SIBLINGS = %d\n", numSiblings);
         AdjustTree(leafNode, newLeafNode, S, numSiblings);
 
         if (leafNode->parent_ptr == NULL && newLeafNode != NULL)
