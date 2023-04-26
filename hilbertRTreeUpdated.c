@@ -8,7 +8,7 @@
 #define m 2
 #define MAX_CHILDREN M // M = 4; MAXIMUM NUMBER OF CHILDREN
 #define MIN_CHILDREN m
-#define MAX_POINTS 15
+#define MAX_POINTS 21
 int CURRENT_ID = 0;
 int num_results = 0;
 bool root_split = false;
@@ -418,20 +418,27 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
 
     // SET OF COOPERATING SIBLINGS FOR THE PARENTNODE
     NODE *S = cooperatingSiblings(parentNode);
+    //NUMBER OF SIBLINGS
     int numSiblings = numberOfSiblings(S);
 
     // SET OF ALL NON LEAF ENTRIES IN PARENTNODE AND SIBLINGS
     int *num_entries = (int *)malloc(sizeof(int));
     *num_entries = 0;
-    NonLeafEntry *E = (NonLeafEntry *)malloc(sizeof(struct NonLeafEntry) * MAX_POINTS);
+    NonLeafEntry *E = (NonLeafEntry *)malloc(sizeof(NonLeafEntry) * MAX_POINTS);
+
+    //ADD ALL ENTRIES TO E FROM THE SIBLINGS
     store_all_entries(E, S, num_entries, numSiblings);
+    //ADD NEW NON LEAF ENTRY TO E
+    E[(*num_entries)++] = entry;
+
+    //SORT THE SET BASED ON LHV OF NON LEAF ENTRIES
     qsort(E, *num_entries, sizeof(NonLeafEntry), compareNonLeafEntry);
 
     // IF ALL SIBLINGS ARE FULL OR NOT
     bool allFull = true;
     allFull = allNodesFull(S, numSiblings); // True if all nodes in S are full
 
-    // IF ALL SIBLINGS ARE FULL
+    // IF ALL SIBLINGS ARE NOT FULL
     if (!allFull)
     {
         printf("PARENT NODE'S %d SIBLINGS ARE NOT ALL FULL\n", numSiblings);
@@ -439,6 +446,7 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
         int num_entries_per_node = (*num_entries) / numSiblings;
         int remainder_entries = (*num_entries) % numSiblings;
 
+        //DISTRIBUTION LIST[I] = NUMBER OF ENTRIES FOR THE ITH SIBLINGS
         int *distributionList = (int *)calloc(numSiblings, sizeof(int));
         for (int i = 0; i < numSiblings; i++)
         {
@@ -449,10 +457,15 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
             distributionList[j]++;
         }
 
+
+        //DISTRIBUTE THE NON LEAF ENTRIES AMONGST THE SIBLINGS
         int done = 0;
+        //FOR EACH SIBLINGS
         for (int j = 0; j < numSiblings; j++)
         {
+            //SET NON LEAF ENTRIES TO 0
             S[j]->non_leaf_node.num_entries = 0;
+            //ADD DISTRIBUTIONLIST[I] NUMBER OF ENTRIES TO ITH SIBLINGS
             for (int l = 0; l < distributionList[j]; l++)
             {
 
@@ -461,15 +474,17 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
                 done++;
                 
             }
-            qsort(E, *num_entries, sizeof(struct NonLeafEntry *), compareNonLeafEntry);
 
             for (int l = distributionList[j]; l < M; l++)
             {
+                //SET ALL ATTRIBUTES OF THE REMAINING ENTRIES TO 0
                 S[j]->non_leaf_node.entries[l].mbr.bottom_left.x = 0;
                 S[j]->non_leaf_node.entries[l].mbr.bottom_left.y = 0;
                 S[j]->non_leaf_node.entries[l].mbr.top_right.x = 0;
                 S[j]->non_leaf_node.entries[l].mbr.top_right.y = 0;
                 S[j]->non_leaf_node.entries[l].mbr.h = 0;
+                S[j]->non_leaf_node.entries[l].child_ptr = NULL;
+                S[j]->non_leaf_node.entries[l].largest_hilbert_value = 0;
             }
         }
 
@@ -478,19 +493,26 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
     }
     else
     {
-        printf("ALL PARENT NODE'S %d SIBLINGS ARE FULL\n", numSiblings);
-        qsort(E, *num_entries, sizeof(struct NonLeafEntry *), compareNonLeafEntry);
 
+        printf("ALL PARENT NODE'S %d SIBLINGS ARE FULL\n", numSiblings);
+        //SORT THE SET OF ALL NON LEAF ENTRIES
+        qsort(E, *num_entries, sizeof(NonLeafEntry), compareNonLeafEntry);
+
+        //CREATE A NEW NODE
         NODE NN = (NODE)calloc(1, sizeof(struct Node));
         NN->parent_ptr = NULL;
+        NN->non_leaf_node.num_entries = 0;
+        NN->leaf_node.num_entries = 0;
+        NN->is_leaf = 0;
 
         if (parentNode->parent_ptr == NULL)
         {
+            //PARENT NODE IS ROOT: ROOT WAS SPLIT
             root_split = true;
         }
+
         // ADD NN TO SIBLINGS
-        S[numSiblings] = NN; // ADD THE NEW NODE TO THE SET OF SIBLINGS
-        numSiblings++;
+        S[numSiblings++] = NN; // ADD THE NEW NODE TO THE SET OF SIBLINGS
 
         // qsort(E, n, sizeof(struct Rectangle), compare);
         int num_entries_per_node = (*num_entries) / numSiblings;
@@ -513,7 +535,7 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
             S[j]->non_leaf_node.num_entries = 0;
             for (int l = 0; l < distributionList[j]; l++)
             {
-
+                 
                 S[j]->non_leaf_node.entries[l] = E[done];
                 S[j]->non_leaf_node.num_entries++;
                 done++;
@@ -525,6 +547,8 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node)
                 S[j]->non_leaf_node.entries[l].mbr.top_right.x = 0;
                 S[j]->non_leaf_node.entries[l].mbr.top_right.y = 0;
                 S[j]->non_leaf_node.entries[l].mbr.h = 0;
+                S[j]->non_leaf_node.entries[l].child_ptr = NULL;
+                S[j]->non_leaf_node.entries[l].largest_hilbert_value = 0;
             }
         }
         return NN;
@@ -799,21 +823,25 @@ void sortSiblings(NODE *S, int numSiblings)
 }
 NODE *cooperatingSiblings(NODE n)
 {
-    // taking s=2
+    // taking s=2: FINDING (S-1) SIBLINGS
     NODE *S = (NODE *)malloc(sizeof(NODE) * MAX_POINTS);
+    //INITIALISE ALL ENTIRES TO NULL
     for (int i = 0; i < MAX_POINTS; i++)
     {
         S[i] = NULL;
     }
+    //ADD THE NODE ITSELF TO THE SET
     S[0] = n;
     int numSiblingsCP = 0;
+    //PARENTNODE IS THE PARENT NODE OF N
     NODE parentNode = n->parent_ptr;
+    //IF PARENTNODE IS NULL;  N IS ROOT: NO 1 SIBLINGS
     if (parentNode == NULL)
     {
         return S;
     }
     // GO FROM CURRENT NODE TO ROOT FINDING SIBLINGS
-    // WITH LESS THAN MAXIMUM POINTERS
+    //1. FIND INDEX OF THE NODE IN THE PARENT NODE
     int index = -1;
     for (int i = 0; i < parentNode->non_leaf_node.num_entries; i++)
     {
@@ -823,16 +851,18 @@ NODE *cooperatingSiblings(NODE n)
             break;
         }
     }
+    //IF NODE ON LEFT IS AVAILABLE
     if (index > 0)
     {
         S[++numSiblingsCP] = parentNode->non_leaf_node.entries[index - 1].child_ptr;
     }
+    //IF NODE ON RIGHT IS AVAILABLE
     if (index < parentNode->non_leaf_node.num_entries - 1)
     {
         S[++numSiblingsCP] = parentNode->non_leaf_node.entries[index + 1].child_ptr;
     }
 
-    //SORT S ON COMPUTELHV(ELEMENT)
+    //SORT S ON COMPUTELHV(ELEMENT): LHV OF THE NON LEAF ENTRIES
     sortSiblings(S, numSiblingsCP + 1);
     return S; 
 }
