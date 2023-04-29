@@ -676,7 +676,7 @@ bool nodes_equal(NODE node1, NODE node2)
     return true;
 }
 
-// CALCULATE LHV FOR A NON LEAF ENTRY: BY EVAUATING ALL CHILD PTR ETRIES
+// CALCULATE LHV FOR A NON LEAF ENTRY: BY EVALUATING ALL CHILD PTR ETRIES
 int calculateLHV(NonLeafEntry entry)
 {
     int max_h = 0;
@@ -692,6 +692,7 @@ int calculateLHV(NonLeafEntry entry)
                 max_h = node->leaf_node.entries[i].mbr.h;
             }
         }
+        return max_h;
     }
     else if (node->is_leaf == 0)
     {
@@ -699,6 +700,7 @@ int calculateLHV(NonLeafEntry entry)
         // NON LEAF CHILD NODE
         for (int i = 0; i < node->non_leaf_node.num_entries; i++)
         {
+            node->non_leaf_node.entries[i].largest_hilbert_value = calculateLHV(node->non_leaf_node.entries[i]);
             if (node->non_leaf_node.entries[i].largest_hilbert_value > max_h)
             {
                 max_h = node->non_leaf_node.entries[i].largest_hilbert_value;
@@ -782,6 +784,8 @@ void InsertNode(NODE parent, NODE newNode)
     parent->non_leaf_node.entries[i] = entry;
     parent->non_leaf_node.num_entries++;
 }
+
+
 
 // FUNCTION TO FIND A LEAF WHERE RECTANGLE R SHOULD BE INSERTED
 NODE ChooseLeaf(NODE n, Rectangle r, int h) // PARAMETERS: NODE N, RECTANGLE R, HILBERT VALUE FO CENTRE OF RECTANGLE: H
@@ -1171,8 +1175,10 @@ NODE Insert(NODE root, Rectangle rectangle)
 {
     //I1. GET THE SUITABLE LEAF NODE WHERE RECTANGLE SHOULD BE INSERTED
     NODE leafNode = ChooseLeaf(root, rectangle, rectangle.h);
+
     //SET THE POSSIBLE NODE UPON SPLITTING TO NULL
     NODE newLeafNode = NULL;
+
     //SET OF COOPERATING SIBLINGS AND NUMBER OF SIBLING NDOES
     NODE *S = cooperatingSiblings(leafNode);
     int numSiblings = numberOfSiblings(S);
@@ -1224,6 +1230,7 @@ NODE Insert(NODE root, Rectangle rectangle)
             // printf("LEAF NODE SPLIT: %d\n", rectangle.h);
             //NEW NODE IS A LEAF NODE
             newLeafNode->is_leaf = 1;
+
             //I3. SET S SHOULD CONTAIN L, COOPERATING SIBLINGS AND THE NEW NODE 
             S[numSiblings++] = newLeafNode;
 
