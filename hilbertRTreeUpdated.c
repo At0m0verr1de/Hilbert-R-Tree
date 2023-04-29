@@ -12,7 +12,6 @@
 #define MAX_CHILDREN M // M = 4; MAXIMUM NUMBER OF CHILDREN
 #define MIN_CHILDREN m
 #define MAX_POINTS 100
-// Assumes the maximum x and y coordinates are 2^31-1
 #define MAX_COORDINATE 2147483647
 
 //--------------------------- STRUCTURE DEFINITIONS ----------------------------//
@@ -141,7 +140,7 @@ Rectangle new_rectangle(int bottomLeft_X, int bottomLeft_y, int topRight_x, int 
     mbr.bottom_left.y = bottomLeft_y;
     mbr.top_right.x = topRight_x;
     mbr.top_right.y = topRight_y;
-    mbr.h = hilbertXYToIndex(5, (mbr.bottom_left.x + mbr.top_right.x) / 2, (mbr.bottom_left.y + mbr.top_right.y) / 2);
+    mbr.h = hilbertXYToIndex(15, (mbr.bottom_left.x + mbr.top_right.x) / 2, (mbr.bottom_left.y + mbr.top_right.y) / 2);
     return mbr;
 }
 
