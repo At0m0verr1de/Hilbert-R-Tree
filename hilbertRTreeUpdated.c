@@ -11,7 +11,7 @@
 #define m 2
 #define MAX_CHILDREN M // M = 4; MAXIMUM NUMBER OF CHILDREN
 #define MIN_CHILDREN m
-#define MAX_POINTS 21000
+#define MAX_POINTS 100
 // Assumes the maximum x and y coordinates are 2^31-1
 #define MAX_COORDINATE 2147483647
 
@@ -27,7 +27,7 @@ struct Rectangle
 {
     Point bottom_left;
     Point top_right; // coordinates of the rectangle
-    int h;           // Hilbert value of the rectangle center
+    int h;           // Hilbert value of the rectangle's center
 };
 typedef struct LeafEntry LeafEntry;
 struct LeafEntry
@@ -50,6 +50,7 @@ struct NonLeafEntry
     int largest_hilbert_value; // Largest hilbert value among the data records enclosed by the MBR
 };
 
+typedef struct NonLeafNode NonLeafNode;
 struct NonLeafNode
 {
     int num_entries;
@@ -124,7 +125,7 @@ HilbertRTree *new_hilbertRTree()
 // CREATE A NEW NODE
 NODE new_node(int is_leaf)
 {
-    NODE node = (NODE)malloc(sizeof(struct Node));
+    NODE node = (NODE)calloc(1,sizeof(struct Node));
     node->is_leaf = is_leaf;
     node->parent_ptr = NULL;
     node->leaf_node.num_entries = 0;
@@ -156,6 +157,9 @@ uint32_t interleave(uint32_t x)
     x = (x | (x << 1)) & 0x55555555;
     return x;
 }
+
+
+
 // COMPUTE THE LHV OF A LEAF NODE'S PARENT NON LEAF ENTRY
 int computeLeafLHV(NODE a)
 {
@@ -173,6 +177,9 @@ int computeLeafLHV(NODE a)
     }
     return LHV;
 }
+
+
+
 
 // COMPARE TWO NON LEAF ENTRIES BASED ON LHV
 int compareNonLeafEntry(const void *a, const void *b)
@@ -420,7 +427,7 @@ Rectangle calculateEntryMBR(NonLeafEntry entry)
 void printMBR(Rectangle rect)
 {
 
-    printf("MBR = %d %d %d %d\n", rect.bottom_left.x, rect.bottom_left.y, rect.top_right.x, rect.top_right.y);
+    printf("MBR = (%d, %d) to  (%d, %d)\n", rect.bottom_left.x, rect.bottom_left.y, rect.top_right.x, rect.top_right.y);
     return;
 }
 
@@ -556,6 +563,7 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node1)
 
     // SET OF ALL NON LEAF ENTRIES IN PARENTNODE AND SIBLINGS
     int *num_entries = (int *)malloc(sizeof(int));
+
     *num_entries = 0;
     NonLeafEntry *E = (NonLeafEntry *)calloc(MAX_POINTS, sizeof(NonLeafEntry));
 
@@ -572,10 +580,11 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node1)
     bool allFull = true;
     allFull = allNodesFull(S, numSiblings); // True if all nodes in S are full
 
-    // IF ALL SIBLINGS ARE NOT FULL
+    // IF ALL SIBLINGS ARE FULL
     if (allFull)
     {
         printf("ALL PARENT NODE'S %d SIBLINGS ARE FULL\n", numSiblings);
+
         // CREATE A NEW NODE
         NN = new_node(0);
 
@@ -588,10 +597,10 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node1)
         // ADD NN TO SIBLINGS
         S[numSiblings++] = NN; // ADD THE NEW NODE TO THE SET OF SIBLINGS
 
-        printf("PARENT NODE: NUMBER OF NON LEAF ENTRIES = %d NUMBER OF SIBLINGS = %d\n", *num_entries, numSiblings);
+        // printf("PARENT NODE: NUMBER OF NON LEAF ENTRIES = %d NUMBER OF SIBLINGS = %d\n", *num_entries, numSiblings);
 
     }
-        // qsort(E, n, sizeof(struct Rectangle), compare);
+
     distribute_nonleaf_entries_evenly(S, numSiblings, E, num_entries);
     free(E); free(num_entries);
     return NN;
@@ -618,6 +627,7 @@ bool nodes_equal(NODE node1, NODE node2)
     {
         return false;
     }
+
     if (node1->is_leaf)
     {
         // Compare LeafNode fields
@@ -832,12 +842,14 @@ void sortSiblings(NODE *S, int numSiblings)
         for (int j = 0; j < numSiblings - i - 1; j++)
         {
             // SORTING HAPPENS BASED ON THE LARGEST HILBERT VALUES OF THEIR ENTRIES
-            if (computeLeafLHV(S[j]) > computeLeafLHV(S[j + 1]))
-            {
-                NODE temp = S[j];
-                S[j] = S[j + 1];
-                S[j + 1] = temp;
-            }
+                if (computeLeafLHV(S[j]) > computeLeafLHV(S[j + 1]))
+                {
+                    NODE temp = S[j];
+                    S[j] = S[j + 1];
+                    S[j + 1] = temp;
+                }
+            
+
         }
     }
 }
@@ -885,7 +897,9 @@ NODE *cooperatingSiblings(NODE n)
     // IF NODE ON LEFT IS AVAILABLE
     if (index > 0)
     {
-        S[++numSiblingsCP] = parentNode->non_leaf_node.entries[index - 1].child_ptr;
+        S[0] = parentNode->non_leaf_node.entries[index - 1].child_ptr;
+        S[1] = n;
+        numSiblingsCP++;
     }
 
     // IF NODE ON RIGHT IS AVAILABLE
@@ -1414,7 +1428,7 @@ int main()
 
     // INITIALLY THE ROOT OF TREE IS A LEAF;
     Rtree->root = new_node(1);
-
+ 
     // THE PARENT POINTER OF ROOT IS NULL
     Rtree->root->parent_ptr = NULL;
 
