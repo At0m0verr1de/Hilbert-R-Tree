@@ -77,6 +77,9 @@ int num_results = 0;
 bool root_split = false;
 NODE root1 = NULL;
 NODE root2 = NULL;
+Point points[MAX_POINTS];
+Rectangle rectangles[MAX_POINTS];
+int order = 0;
 
 // ---------------------------- FUNCTION DECLERATIONS ------------------------------ //
 HilbertRTree *new_hilbertRTree();
@@ -115,36 +118,88 @@ LeafEntry *search(NODE root, Rectangle rectangle);
 
 //--------------------------- FUNCTIONS TO CREATE NEW TREE AND NODE ----------------------------//
 // CREATE A NEW HILBERT R TREE STRUCTURE
+
 HilbertRTree *new_hilbertRTree()
 {
-    HilbertRTree *tree = (HilbertRTree *)calloc(1,sizeof(HilbertRTree));
-    tree->root = NULL;
+    HilbertRTree *tree = (HilbertRTree *)calloc(1, sizeof(HilbertRTree));
+    // INITIALLY THE ROOT OF TREE IS A LEAF;
+    tree->root = new_node(1);
+
     return tree;
 }
 // CREATE A NEW NODE
 NODE new_node(int is_leaf)
 {
-    NODE node = (NODE)calloc(1,sizeof(struct Node));
+    NODE node = (NODE)calloc(1, sizeof(struct Node));
     node->is_leaf = is_leaf;
     node->parent_ptr = NULL;
     node->leaf_node.num_entries = 0;
     node->non_leaf_node.num_entries = 0;
     return node;
 }
+void readFile()
+{
+    FILE *fp;
+    int num_points = 0;
+    // OPENING FILE CONTAINING THE INPUT DATA POINTS
+    fp = fopen("data1.txt", "r");
 
+    // IF FILE COULD NOT BE OPENED
+    if (fp == NULL)
+    {
+        printf("Error opening file.\n");
+    }
+
+    // INPUT DATA POINTS FROM THE FILE: NUMBER OF POINTS SPECIFIED BY MACRO MAX_POINTS
+    for (int i = 0; i < MAX_POINTS; i++)
+    {
+        fscanf(fp, "%d %d\n", &points[num_points].x, &points[num_points].y);
+        // printf("POINT = %d %d\n", points[num_points].x, points[num_points].y);
+        ++num_points;
+    }
+
+    // CREATE RECTANGLES FROM THE DATA POINTS
+    // LETS ASSUME THE RECTANGLES INITIALLY ARE THE DATA POINTS WITH THE BOTTOM LEFT CORNER = TOP RIGHT CORNER = DATA-POINT
+    for (int i = 0; i < MAX_POINTS; i++)
+    {
+        rectangles[i] = new_rectangle(points[i].x, points[i].y, points[i].x, points[i].y);
+    }
+    // QUICK SORT RECTANGLES ARRAY
+    qsort(rectangles, MAX_POINTS, sizeof(struct Rectangle), compare); // ARGUMENTS = ARRAY, NUMBER OF ELEMENTS, SIZE OF EACH ELEMENT, COMPARISON FUNCTION
+
+    // CLOSING THE FILE AFTER READING INPUT
+    fclose(fp);
+}
 // IS_LEAF = 1 IF LEAF NODE. M = MAXIMUM NUMBER OF CHILDREN THAT NODE CAN HAVE
-
-Rectangle new_rectangle(int bottomLeft_X, int bottomLeft_y, int topRight_x, int topRight_y){
+int calculateOrder()
+{
+    int max_val = 0;
+    for (int i = 0; i < MAX_POINTS; i++)
+    {
+        if (points[i].x > max_val)
+        {
+            max_val = points[i].x;
+        }
+        if (points[i].y > max_val)
+        {
+            max_val = points[i].y;
+        }
+    }
+    int order = (int)ceil(log2(max_val));
+    printf("Max value = %d, order = %d\n", max_val, order);
+    return order;
+}
+Rectangle new_rectangle(int bottomLeft_X, int bottomLeft_y, int topRight_x, int topRight_y)
+{
     Rectangle mbr;
     mbr.bottom_left.x = bottomLeft_X;
     mbr.bottom_left.y = bottomLeft_y;
     mbr.top_right.x = topRight_x;
     mbr.top_right.y = topRight_y;
-    mbr.h = hilbertXYToIndex(15, (mbr.bottom_left.x + mbr.top_right.x) / 2, (mbr.bottom_left.y + mbr.top_right.y) / 2);
+
+    mbr.h = hilbertXYToIndex(order, (mbr.bottom_left.x + mbr.top_right.x) / 2, (mbr.bottom_left.y + mbr.top_right.y) / 2);
     return mbr;
 }
-
-
 
 // Function to calculate the minimum bounding rectangle that contains two given rectangles
 
@@ -156,8 +211,6 @@ uint32_t interleave(uint32_t x)
     x = (x | (x << 1)) & 0x55555555;
     return x;
 }
-
-
 
 // COMPUTE THE LHV OF A LEAF NODE'S PARENT NON LEAF ENTRY
 int computeLeafLHV(NODE a)
@@ -177,9 +230,6 @@ int computeLeafLHV(NODE a)
     return LHV;
 }
 
-
-
-
 // COMPARE TWO NON LEAF ENTRIES BASED ON LHV
 int compareNonLeafEntry(const void *a, const void *b)
 {
@@ -195,7 +245,6 @@ int compare(const void *a, const void *b)
     const struct LeafEntry *s2 = b;
     return s1->mbr.h - s2->mbr.h;
 }
-
 
 // PRE-ORDER TRAVERSAL OF A NODE; PRINTING A INTERNAL NODE AND THEN
 void preOrderTraverse(NODE n)
@@ -227,7 +276,6 @@ void preOrderTraverse(NODE n)
         }
     }
 }
-
 
 uint32_t hilbertXYToIndex(uint32_t n, uint32_t x, uint32_t y)
 {
@@ -324,7 +372,6 @@ bool allNodesFull(NODE *S, int numSiblings)
     return allFull;
 }
 
- 
 // CALCULATE THE MBR RECTANGLES FROM TWO RECTANGLES: POTENTIAL HELPER FUNCTION
 Rectangle calculateMBR(Rectangle r1, Rectangle r2)
 {
@@ -373,7 +420,7 @@ Rectangle calculateMBR(Rectangle r1, Rectangle r2)
 // CALCULATE THE MBR FOR A NON LEAF ENTRY BASED ON ENTRIES IN ITS CHILD NODE
 Rectangle calculateEntryMBR(NonLeafEntry entry)
 {
-    // FOR EACH NON LEAF ENTRY; CALCULATE MBR FROM CHILD  NODES
+    // FOR EACH NON LEAF ENTRY; CALCULATE MBR FROM CHILD NODES
     // FIND -> LOWEST X, LOWEST Y AND HIGHEST X, HIGHEST Y
     Rectangle mbr;
     NODE next_node = entry.child_ptr;
@@ -426,14 +473,14 @@ Rectangle calculateEntryMBR(NonLeafEntry entry)
 void printMBR(Rectangle rect)
 {
 
-    printf("MBR = (%d, %d) to  (%d, %d)\n", rect.bottom_left.x, rect.bottom_left.y, rect.top_right.x, rect.top_right.y);
+    printf("MBR = (%d, %d) to (%d, %d)\n", rect.bottom_left.x, rect.bottom_left.y, rect.top_right.x, rect.top_right.y);
     return;
 }
 
 // STORE ALL ELAF ENTRIES OF LEAF NODES IN S INTO E
 void store_all_leaf_entries(LeafEntry *E, int *num_entries, NODE *S, int numSiblings)
 {
-    //FOR EVERY SIBLING NODE
+    // FOR EVERY SIBLING NODE
     for (int i = 0; i < numSiblings; i++)
     {
         // SIBLING NODE IS A LEAF
@@ -447,7 +494,6 @@ void store_all_leaf_entries(LeafEntry *E, int *num_entries, NODE *S, int numSibl
         }
     }
 }
-
 
 // FUNCTION TO CREATE A NEW LEAF ENTRY WITH THE RECTANGLE PASSED AND A NEW OBJECT ID
 LeafEntry new_leafentry(Rectangle rectangle)
@@ -498,35 +544,34 @@ void distribute_nonleaf_entries_evenly(NODE *S, int numSiblings, NonLeafEntry *E
     // DISTRIBUTION LIST[I] = NUMBER OF ENTRIES FOR THE ITH SIBLINGS
     int *distributionList = (int *)calloc(numSiblings, sizeof(int));
 
-    //EACH SIBLING HAS ATLEAST NUM_ENTRIES_PER_NODE ENTRIES
+    // EACH SIBLING HAS ATLEAST NUM_ENTRIES_PER_NODE ENTRIES
     for (int i = 0; i < numSiblings; i++)
     {
         distributionList[i] = num_entries_per_node;
     }
-    //ADD THE REMAINDER ENTRIES
+    // ADD THE REMAINDER ENTRIES
     for (int j = 0; j < remainder_entries; j++)
     {
         distributionList[j]++;
     }
 
-
     int done = 0;
-    //ADD THE ENTRIES TO THE SIBLINGS
+    // ADD THE ENTRIES TO THE SIBLINGS
     for (int j = 0; j < numSiblings; j++)
     {
-        //SET THE NON LEAF ENTRIES TO 0
+        // SET THE NON LEAF ENTRIES TO 0
         S[j]->non_leaf_node.num_entries = 0;
 
         for (int l = 0; l < distributionList[j]; l++)
         {
 
-            //ADD THE NON LEAF ENTRY
+            // ADD THE NON LEAF ENTRY
             S[j]->non_leaf_node.entries[l] = E[done];
             E[done].child_ptr->parent_ptr = S[j];
             S[j]->non_leaf_node.num_entries++;
             done++;
         }
-        //SET REMAINING ENTRIES TO 0
+        // SET REMAINING ENTRIES TO 0
         for (int l = distributionList[j]; l < M; l++)
         {
             S[j]->non_leaf_node.entries[l].mbr.bottom_left.x = 0;
@@ -553,11 +598,11 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node1)
 
     // SET OF COOPERATING SIBLINGS FOR THE PARENTNODE
     NODE *S = cooperatingSiblings(parentNode);
- 
+
     // NUMBER OF SIBLINGS
     int numSiblings = numberOfSiblings(S);
 
-    //SET THE POSSIBLE NODE UPON SLITTING OF PARENTNODE TO NULL
+    // SET THE POSSIBLE NODE UPON SLITTING OF PARENTNODE TO NULL
     NODE NN = NULL;
 
     // SET OF ALL NON LEAF ENTRIES IN PARENTNODE AND SIBLINGS
@@ -597,13 +642,12 @@ NODE HandleOverFlowNode(NODE parentNode, NODE new_node1)
         S[numSiblings++] = NN; // ADD THE NEW NODE TO THE SET OF SIBLINGS
 
         // printf("PARENT NODE: NUMBER OF NON LEAF ENTRIES = %d NUMBER OF SIBLINGS = %d\n", *num_entries, numSiblings);
-
     }
 
     distribute_nonleaf_entries_evenly(S, numSiblings, E, num_entries);
-    free(E); free(num_entries);
+    free(E);
+    free(num_entries);
     return NN;
-    
 }
 
 // HELPER FUNCTION TO RETURN TRUE IF TWO RECTANGLES HAVE THE SAME BOTTOM LEFT AND TOP RIGHT POINTS ARE SAME
@@ -709,7 +753,6 @@ int calculateLHV(NonLeafEntry entry)
     return max_h;
 }
 
-
 // HELPER FUNCTION TO CHECK IN ARRAY
 bool isInArray(NODE *arr, int size, NODE node)
 {
@@ -722,8 +765,6 @@ bool isInArray(NODE *arr, int size, NODE node)
     }
     return false;
 }
-
-
 
 /*ADJUST TREE ASCEND FROM LEAF TOWARDS ROOT AND ADJUST MBR AND LHV VALUES*/
 void adjustLHV(NODE parentNode)
@@ -740,8 +781,6 @@ void adjustLHV(NODE parentNode)
     adjustLHV(parentNode->parent_ptr);
 }
 
-
-
 void adjustMBR(NODE parentNode)
 {
     if (parentNode == NULL)
@@ -755,7 +794,6 @@ void adjustMBR(NODE parentNode)
     }
     adjustMBR(parentNode->parent_ptr);
 }
-
 
 // HELPER FUNCTION TO INSERT THE NEWNODE AS THE CHILD NODE OF A NONLEAF ENTRY INTO NODE PARENT
 void InsertNode(NODE parent, NODE newNode)
@@ -784,8 +822,6 @@ void InsertNode(NODE parent, NODE newNode)
     parent->non_leaf_node.num_entries++;
 }
 
-
-
 // FUNCTION TO FIND A LEAF WHERE RECTANGLE R SHOULD BE INSERTED
 NODE ChooseLeaf(NODE n, Rectangle r, int h) // PARAMETERS: NODE N, RECTANGLE R, HILBERT VALUE FO CENTRE OF RECTANGLE: H
 {
@@ -793,13 +829,13 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h) // PARAMETERS: NODE N, RECTANGLE R, 
     /* IF N IS A LEAF, RETURN N*/
     // printf("CHOOSE LEAF CALLED\n");
 
-    //C2. LEAF CHECK: IF N IS A LEAF NODE; RETURN N
+    // C2. LEAF CHECK: IF N IS A LEAF NODE; RETURN N
     if (n->is_leaf == 1)
     {
         return n;
     }
 
-    //INITIALISE VARIABLES TO STORE CURRENT NODE SELECTED AND MINIMUM LHV (GREATER THAN H OF RECTANGLE)
+    // INITIALISE VARIABLES TO STORE CURRENT NODE SELECTED AND MINIMUM LHV (GREATER THAN H OF RECTANGLE)
     float min_LHV = n->non_leaf_node.entries[0].largest_hilbert_value;
     NODE next_node = NULL;
 
@@ -813,9 +849,8 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h) // PARAMETERS: NODE N, RECTANGLE R, 
         }
     }
 
-
     /* IF ALL CHILDREN HAVE LHV LESS THAN H */
-    //NOTE: NOW MIN_LHV STORES THE LARGEST LHV ENCOUNTERED YET AS ALL ENTRIES HAVE LHV LESS THAN H
+    // NOTE: NOW MIN_LHV STORES THE LARGEST LHV ENCOUNTERED YET AS ALL ENTRIES HAVE LHV LESS THAN H
     if (next_node == NULL)
     {
         min_LHV = n->non_leaf_node.entries[0].largest_hilbert_value;
@@ -830,12 +865,9 @@ NODE ChooseLeaf(NODE n, Rectangle r, int h) // PARAMETERS: NODE N, RECTANGLE R, 
         }
     }
 
-
     // C4. DESCEND UNTIL A LEAF NODE IS REACHED
     return ChooseLeaf(next_node, r, h);
-
 }
-
 
 // SORT THE SIBLING NODES IN S USING BUBBLE SORT
 void sortSiblings(NODE *S, int numSiblings)
@@ -845,18 +877,15 @@ void sortSiblings(NODE *S, int numSiblings)
         for (int j = 0; j < numSiblings - i - 1; j++)
         {
             // SORTING HAPPENS BASED ON THE LARGEST HILBERT VALUES OF THEIR ENTRIES
-                if (computeLeafLHV(S[j]) > computeLeafLHV(S[j + 1]))
-                {
-                    NODE temp = S[j];
-                    S[j] = S[j + 1];
-                    S[j + 1] = temp;
-                }
-            
-
+            if (computeLeafLHV(S[j]) > computeLeafLHV(S[j + 1]))
+            {
+                NODE temp = S[j];
+                S[j] = S[j + 1];
+                S[j + 1] = temp;
+            }
         }
     }
 }
-
 
 // HELPER FUNCTION TO RETURN AN ARRAY OF COOPERATING SIBLING NODES AND THE NODE ITSELF (AS REQD IN MULTIPLE ALGORITHMS): S=2; 1 COOPERATING SIBLINGS
 NODE *cooperatingSiblings(NODE n)
@@ -878,7 +907,7 @@ NODE *cooperatingSiblings(NODE n)
     // PARENTNODE IS THE PARENT NODE OF N
     NODE parentNode = n->parent_ptr;
 
-    // IF PARENTNODE IS NULL;  N IS ROOT: NO 1 SIBLINGS
+    // IF PARENTNODE IS NULL; N IS ROOT: NO 1 SIBLINGS
     if (parentNode == NULL)
     {
         return S;
@@ -930,7 +959,6 @@ int numberOfSiblings(NODE *S)
         {
 
             numSiblings++;
-
         }
     }
 
@@ -945,7 +973,6 @@ void copy_rectangle(Rectangle r1, Rectangle r2)
     r1.bottom_left.y = r2.bottom_left.y;
     r1.top_right.y = r2.top_right.y;
 }
-
 
 // HELPER FUNCTION TO DISTRIBUTE THE LEAF ENTRIES IN ARRAY E INTO THE NODES IN ARRAY S EVENLY
 void distribute_leaf_entries_evenly(NODE *S, int numSiblings, LeafEntry *E, int *num_entries)
@@ -967,7 +994,6 @@ void distribute_leaf_entries_evenly(NODE *S, int numSiblings, LeafEntry *E, int 
 
     // DISTRIBUTE THE LEAF ENTRIES AMONGST THE SIBLINGS
     int done = 0;
-
 
     // FOR EACH SIBLINGS
     for (int j = 0; j < numSiblings; j++)
@@ -999,7 +1025,7 @@ void distribute_leaf_entries_evenly(NODE *S, int numSiblings, LeafEntry *E, int 
 NODE HandleOverFlow(NODE n, Rectangle rectangle)
 {
 
-    NODE *S = cooperatingSiblings(n);      // CONTAINS COOPERATING SIBLINGS AND NODE
+    NODE *S = cooperatingSiblings(n); // CONTAINS COOPERATING SIBLINGS AND NODE
 
     int numSiblings = numberOfSiblings(S); // SIZE OF SET S
 
@@ -1045,15 +1071,12 @@ NODE HandleOverFlow(NODE n, Rectangle rectangle)
 
         // ADD NN TO SIBLINGS
         S[numSiblings++] = NN; // ADD THE NEW NODE TO THE SET OF SIBLINGS
-
     }
-    
-    
+
     distribute_leaf_entries_evenly(S, numSiblings, E, num_entries);
     free(E);
     free(num_entries);
     return NN;
-
 }
 
 // RETURNS TRUE IF ROOT NODE WAS SPLIT
@@ -1063,11 +1086,10 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
     NODE Np = N->parent_ptr;
     NODE new_node = NULL;
 
-
     // printf("ADJUST TREE CALLED\n");
 
     // PARENT = NULL; ROOT LEVEL
-    //A1. IF ROOT LEVEL IS REACHED; STOP
+    // A1. IF ROOT LEVEL IS REACHED; STOP
     if (Np == NULL)
     {
         // printf("ROOT LEVEL REACHED IN ADJUST TREE\n");
@@ -1081,7 +1103,7 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
     }
 
     // INSERT SPLIT NODE INTO PARENT
-    //A2. PROPOGATE NODE SPLIT UPWARD
+    // A2. PROPOGATE NODE SPLIT UPWARD
     if (NN != NULL)
     {
 
@@ -1093,23 +1115,21 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
 
             // printf("PARENT NODE HAS SPACE\n");
             InsertNode(Np, NN);
-
         }
-        //OTHERWISE INNVOKE HANDLEOVERFLOWNODE
+        // OTHERWISE INNVOKE HANDLEOVERFLOWNODE
         else
         {
             // PARENT NODE MUST BE SPLIT
             // printf("PARENT NODE IS FULL\n");
 
             // HANDLEOVERFLOWNODE: WHEN PARENT NODE MUST BE SPLIT
-            //IF NP IS SPLIT; NEW_NODE IS THE NEW NODE
+            // IF NP IS SPLIT; NEW_NODE IS THE NEW NODE
             new_node = HandleOverFlowNode(Np, NN);
 
             if (new_node != NULL)
             {
 
                 // printf("PARENT NODE WAS SPLIT\n");
-
             }
 
             // IF ROOT NODE WAS SPLIT BY HANDLEOVERFLOW
@@ -1120,7 +1140,6 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
                 root_split = true;
                 root1 = Np;
                 root2 = new_node;
-
             }
         }
     }
@@ -1139,7 +1158,6 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
         {
 
             continue;
-
         }
 
         NODE parent = S[i]->parent_ptr;
@@ -1148,61 +1166,54 @@ void AdjustTree(NODE N, NODE NN, NODE *S, int s_size)
         {
 
             P[numParents++] = parent;
-
         }
-
     }
 
     // ADJUST MBR AND LHV VALUES
     for (int i = 0; i < numParents; i++)
     {
 
-        //A3. ADJUST CORRESPONDINNG MBRs AND LHVs OF NODES IN P
+        // A3. ADJUST CORRESPONDINNG MBRs AND LHVs OF NODES IN P
         NODE parent = P[i];
         adjustMBR(parent);
         adjustLHV(parent);
-
     }
 
     // A4. MOVE UP TO NEXT LEVEL: NN = NEW_NODE, S = P, NUMSIBLINGS = NUMPARENTS
     AdjustTree(Np, new_node, P, numParents);
-
 }
 
 // INSERTION: INSERT A RECTANGLE INTO THE RTREE BY PASSING ITS ROOT NODE AND THE RECTANGLE
 NODE Insert(NODE root, Rectangle rectangle)
 {
-    //I1. GET THE SUITABLE LEAF NODE WHERE RECTANGLE SHOULD BE INSERTED
+    // I1. GET THE SUITABLE LEAF NODE WHERE RECTANGLE SHOULD BE INSERTED
     NODE leafNode = ChooseLeaf(root, rectangle, rectangle.h);
 
-    //SET THE POSSIBLE NODE UPON SPLITTING TO NULL
+    // SET THE POSSIBLE NODE UPON SPLITTING TO NULL
     NODE newLeafNode = NULL;
 
-    //SET OF COOPERATING SIBLINGS AND NUMBER OF SIBLING NDOES
+    // SET OF COOPERATING SIBLINGS AND NUMBER OF SIBLING NDOES
     NODE *S = cooperatingSiblings(leafNode);
     int numSiblings = numberOfSiblings(S);
 
-
-    //I2. INSERT R IN A LEAF NODE L: IF L HAS AN EMPTY SLOT
+    // I2. INSERT R IN A LEAF NODE L: IF L HAS AN EMPTY SLOT
     if (leafNode->leaf_node.num_entries < M)
     {
         // LEAF NODE HAS SPACE
         // printf("LEAF NODE HAS SPACE: %d\n", rectangle.h);
 
-
-        //FIND INDEX WHERE RECTAGNGLE SHOULD BE INSERTED AS PER HILBERT VALUE
+        // FIND INDEX WHERE RECTAGNGLE SHOULD BE INSERTED AS PER HILBERT VALUE
         int i = 0;
         while (i < leafNode->leaf_node.num_entries && leafNode->leaf_node.entries[i].mbr.h < rectangle.h)
         {
             i++;
         }
 
-        //SHIFT ENTRIES TO ADD THE NEW LEAF ENTRY
+        // SHIFT ENTRIES TO ADD THE NEW LEAF ENTRY
         for (int j = leafNode->leaf_node.num_entries; j > i; j--)
         {
             leafNode->leaf_node.entries[j] = leafNode->leaf_node.entries[j - 1];
         }
-
 
         // CREATE THE LEAF ENTRY WITH NEW RECTANGLE
         LeafEntry entry = new_leafentry(rectangle);
@@ -1210,66 +1221,63 @@ NODE Insert(NODE root, Rectangle rectangle)
         // INSERT THE LEAF ENTRY INTO NODE
         leafNode->leaf_node.entries[i] = entry;
         leafNode->leaf_node.num_entries++;
-
     }
 
-    //I2. INSERT R IN A LEAF NODE L; IF L IS FULL
+    // I2. INSERT R IN A LEAF NODE L; IF L IS FULL
     else if (leafNode->leaf_node.num_entries >= M)
     {
         // LEAF NODE IS FULL
         // printf("LEAF NODE IS FULL: %d\n", rectangle.h);
 
-        //INVOKE HANDLEOVERFLOW; RETURNING A NEW NODE IS SPLIT HAPPENED
+        // INVOKE HANDLEOVERFLOW; RETURNING A NEW NODE IS SPLIT HAPPENED
         newLeafNode = HandleOverFlow(leafNode, rectangle);
 
-        //IF HANDLEOVERFLOW RETURNED A NODE
+        // IF HANDLEOVERFLOW RETURNED A NODE
         if (newLeafNode)
         {
 
             // printf("LEAF NODE SPLIT: %d\n", rectangle.h);
-            //NEW NODE IS A LEAF NODE
+            // NEW NODE IS A LEAF NODE
             newLeafNode->is_leaf = 1;
 
-            //I3. SET S SHOULD CONTAIN L, COOPERATING SIBLINGS AND THE NEW NODE 
+            // I3. SET S SHOULD CONTAIN L, COOPERATING SIBLINGS AND THE NEW NODE
             S[numSiblings++] = newLeafNode;
-
         }
     }
 
-    //I3. PROPOGATE CHANGES UPWARD: INVOKE ADJUSTTREE
+    // I3. PROPOGATE CHANGES UPWARD: INVOKE ADJUSTTREE
     root_split = false;
     AdjustTree(leafNode, newLeafNode, S, numSiblings);
- 
-    //I4. GROW TREE TALLER: IF ROOT WAS SPLIT (AND ROOT WAS THE ONLY NODE -> LEAF NODE)
+
+    // I4. GROW TREE TALLER: IF ROOT WAS SPLIT (AND ROOT WAS THE ONLY NODE -> LEAF NODE)
     if (leafNode->parent_ptr == NULL && newLeafNode != NULL)
     {
 
-            // printf("NEW ROOT FORMED");
-            root_split = true;
-            root1 = leafNode;
-            root2 = newLeafNode;
-
+        // printf("NEW ROOT FORMED");
+        root_split = true;
+        root1 = leafNode;
+        root2 = newLeafNode;
     }
     // RETURNS THE NEW LEAF IF SPLIT WAS INEVITABLE
-    
-    //I4. GROW TREE TALLER; IF ADJUSTTREE AND NODE SPLIT PROPOGATION CAUSED THE ROOT TO SPLIT
+
+    // I4. GROW TREE TALLER; IF ADJUSTTREE AND NODE SPLIT PROPOGATION CAUSED THE ROOT TO SPLIT
     if (root_split)
     {
 
         // printf("ROOT IS SPLIT: %d\n", rectangle.h);
-        //FORM NEW ROOT WHICH IS NOT A LEAF NODE
+        // FORM NEW ROOT WHICH IS NOT A LEAF NODE
         NODE newRoot = new_node(0);
         newRoot->non_leaf_node.num_entries = 2;
 
-        //CREATE THE NEW NON LEAF ENTRIES; WITH ROOT1 AND ROOT2 AS CHILD NODES
+        // CREATE THE NEW NON LEAF ENTRIES; WITH ROOT1 AND ROOT2 AS CHILD NODES
         NonLeafEntry entry1 = new_nonleafentry(root1);
         NonLeafEntry entry2 = new_nonleafentry(root2);
 
-        //ADD THE NON LEAF ENTRIES TO THE NEWLY CREATED ROOT
+        // ADD THE NON LEAF ENTRIES TO THE NEWLY CREATED ROOT
         newRoot->non_leaf_node.entries[0] = entry1;
         newRoot->non_leaf_node.entries[1] = entry2;
-        
-        //SET THE PARENT POINTERS OF ROOT1 AND ROOT2
+
+        // SET THE PARENT POINTERS OF ROOT1 AND ROOT2
         root1->parent_ptr = newRoot;
         root2->parent_ptr = newRoot;
 
@@ -1290,8 +1298,6 @@ bool intersects(Rectangle r1, Rectangle r2)
         r1.top_right.x < r2.bottom_left.x || r2.top_right.x < r1.bottom_left.x ||
         r1.top_right.y < r2.bottom_left.y || r2.top_right.y < r1.bottom_left.y);
 }
-
-
 
 // SEARCH SHOULD RETURN AN ARRAY OF RESULTS
 void searchGetResults(NODE root, Rectangle rectangle, LeafEntry *results)
@@ -1318,8 +1324,6 @@ void searchGetResults(NODE root, Rectangle rectangle, LeafEntry *results)
     }
 }
 
-
-
 LeafEntry *search(NODE root, Rectangle rectangle)
 {
     // NUMBER OF RESULTS: STORED IN GLOBAL VARIABLE
@@ -1329,8 +1333,6 @@ LeafEntry *search(NODE root, Rectangle rectangle)
     return results;
 }
 // handle overflow
-
-
 
 /*FIND THE LEAF NODE CONTAINING A RECTANGLE R*/
 NODE findLeaf(NODE root, Rectangle rectangle)
@@ -1352,8 +1354,6 @@ NODE findLeaf(NODE root, Rectangle rectangle)
     return findLeaf(root->non_leaf_node.entries[i].child_ptr, rectangle);
 }
 
-
-
 int find_entry_index(NODE n, Rectangle rectangle)
 {
     int index = -1;
@@ -1371,8 +1371,6 @@ int find_entry_index(NODE n, Rectangle rectangle)
     return index;
 }
 
-
-
 void print_mbr(Rectangle r)
 {
     printf("Top right point: (%d, %d)\n", r.top_right.x, r.top_right.y);
@@ -1380,72 +1378,29 @@ void print_mbr(Rectangle r)
 }
 
 
+void insertRectangles(HilbertRTree* Rtree){
+    for (int i = 0; i < MAX_POINTS; i++)
+    {
+        Rtree->root = Insert(Rtree->root, rectangles[i]);
+    }
+}
 
 int main()
 {
-    FILE *fp;
-    Point points[MAX_POINTS];
-    int num_points = 0;
-
-    //OPENING FILE CONTAINING THE INPUT DATA POINTS
-    fp = fopen("data1.txt", "r");
     
+    readFile();
 
-    //IF FILE COULD NOT BE OPENED
-    if (fp == NULL)
-    {
-        printf("Error opening file.\n");
-        return 1;
-    }
-
-
-    // INPUT DATA POINTS FROM THE FILE: NUMBER OF POINTS SPECIFIED BY MACRO MAX_POINTS
-    for (int i = 0; i < MAX_POINTS; i++)
-    {
-        fscanf(fp, "%d %d\n", &points[num_points].x, &points[num_points].y);
-        // printf("POINT  = %d %d\n", points[num_points].x, points[num_points].y);
-        ++num_points;
-    }
-
-    //CLOSING THE FILE AFTER READING INPUT
-    fclose(fp);
-
-    // LETS ASSUME THE RECTANGLES INITIALLY ARE THE DATA POINTS WITH THE BOTTOM LEFT CORNER = TOP RIGHT CORNER = DATA-POINT
-    Rectangle rectangles[MAX_POINTS];
-
-
-    // CREATE RECTANGLES FROM THE DATA POINTS
-    for (int i = 0; i < MAX_POINTS; i++)
-    {
-        rectangles[i] = new_rectangle(points[i].x, points[i].y, points[i].x, points[i].y);
-    }
-
-    // QUICK SORT RECTANGLES ARRAY
-    qsort(rectangles, MAX_POINTS, sizeof(struct Rectangle), compare); // ARGUMENTS = ARRAY, NUMBER OF ELEMENTS, SIZE OF EACH ELEMENT, COMPARISON FUNCTION
-
-    // PRINT THE H-VALUES OF RECTANGLES
-    // for (int i = 0; i < MAX_POINTS; i++)
-    // {
-    //     printf("RECTANGLE WITH H-VALUE = %d\n", rectangles[i].h);
-    // }
+    //CALCULATE THE ORDER OF THE HILBERT CURVE BASED ON LARGEST COORDINATE    
+    order = calculateOrder();
 
     // CREATE A HILBERT R TREE
     HilbertRTree *Rtree = new_hilbertRTree();
 
-    // INITIALLY THE ROOT OF TREE IS A LEAF;
-    Rtree->root = new_node(1);
- 
-    // THE PARENT POINTER OF ROOT IS NULL
-    Rtree->root->parent_ptr = NULL;
-
     // INSERT THE RECTANGLES INTO THE HILBERT RTREE
-    for (int i = 0; i < MAX_POINTS; i++)
-    {
-
-        Rtree->root = Insert(Rtree->root, rectangles[i]);
-    }
+    insertRectangles(Rtree);
 
     // PERFORM A PRE ORDER TRAVERSAL OF THE TREE
     preOrderTraverse(Rtree->root);
+    
     return 0;
 }
